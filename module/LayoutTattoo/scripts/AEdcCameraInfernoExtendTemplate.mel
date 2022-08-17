@@ -1,0 +1,62 @@
+// Copyright (C) 2020, David Cattermole.
+//
+// This file is part of dcCameraInferno.
+//
+// dcCameraInferno is free software: you can redistribute it and/or modify it
+// under the terms of the GNU Lesser General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// dcCameraInferno is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with dcCameraInferno.  If not, see <https://www.gnu.org/licenses/>.
+//
+
+global proc AEdcCameraInfernoExtendTemplate(string $nodeName) {
+    editorTemplate -beginScrollLayout;
+
+    editorTemplate -beginLayout "Input Values" -collapse 0;
+        editorTemplate -label "Scene Scale" -addControl "sceneScale";
+        editorTemplate -label "Frames Per-Second" -addControl "framesPerSecond";
+        editorTemplate -label "Ground Height" -addControl "groundHeight";
+        editorTemplate -label "Camera Speed (Raw)" -addControl "cameraSpeedRaw";
+    editorTemplate -endLayout;
+
+    editorTemplate -beginLayout "HUD Size" -collapse 0;
+        editorTemplate -label "Text Size" -addControl "textSize";
+        editorTemplate -label "Point Size" -addControl "pointSize";
+        editorTemplate -label "Line Width" -addControl "lineWidth";
+    editorTemplate -endLayout;
+
+    editorTemplate -beginLayout "Film Gate" -collapse 0;
+        editorTemplate -label "Enable" -addControl "filmGateEnable";
+        editorTemplate -label "Color" -addControl "filmGateColor";
+        editorTemplate -label "Alpha" -addControl "filmGateAlpha";
+    editorTemplate -endLayout;
+
+    editorTemplate -beginLayout "Mask" -collapse 0;
+        editorTemplate -label "Enable" -addControl "maskEnable";
+        editorTemplate -label "Top" -addControl "maskEnableTop";
+        editorTemplate -label "Bottom" -addControl "maskEnableBottom";
+        editorTemplate -label "Aspect Ratio" -addControl "maskAspectRatio";
+        editorTemplate -label "Color" -addControl "maskColor";
+        editorTemplate -label "Alpha" -addControl "maskAlpha";
+    editorTemplate -endLayout;
+
+    editorTemplate -label "Fields" -addControl "field";
+
+    // Base class attributes
+    AEdependNodeTemplate $nodeName;
+
+    editorTemplate -suppress "fieldValueA";
+    editorTemplate -suppress "fieldValueB";
+    editorTemplate -suppress "fieldValueC";
+    editorTemplate -suppress "fieldValueD";
+
+    editorTemplate -addExtraControls;
+    editorTemplate -endScrollLayout;
+}
