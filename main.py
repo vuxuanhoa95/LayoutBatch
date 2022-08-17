@@ -19,13 +19,13 @@ def resource_path(relative_path):
 RESOURCE = resource_path('Resources') + '\\'
 MAIN_UI = resource_path('utils') + '\\main.ui'
 
-MAYA_LOCATION = r'C:\Program Files\Autodesk\Maya2023'
+MAYA_LOCATION = r'C:\Program Files\Autodesk\Maya2018'
 MAYA_BATCH = os.path.join(MAYA_LOCATION, 'bin', 'mayabatch.exe')
+MAYA_RENDER = os.path.join(MAYA_LOCATION, 'bin', 'render.exe')
 MAYA_PY = os.path.join(MAYA_LOCATION, 'bin', 'mayapy.exe')
 
 TEMP = r'D:\temp'
 MAYA_SCRIPT = os.path.join(TEMP, 'test.py').replace("\\", "/")
-# MAYA_SCRIPT = MAYA_SCRIPT.replace("\\", "/")
 # COMMAND = "python(\\\"execfile(\\'{}\\')\\\")".format(
 #         MAYA_SCRIPT.replace("\\", "/")
 #     )
@@ -45,7 +45,12 @@ PRESET_TASKS = {
         'args': ['noAutoloadPlugins'],
         'kwargs': {'command': COMMAND, 'log': LOG_FILE},
     },
+    'Playblast': {
+        'args': [],
+        'kwargs': {},
+    },
 }
+
 
 PATTERN = re.compile(r'((\w:)|(\.))((/(?!/)(?!/)|\\{2})[^\n?"|></\\:*]+)+')
 
@@ -82,7 +87,7 @@ class TaskItem(QListWidgetItem):
         self.preset = {
             'args': ['help'],
         }
-        self.arguments = ['-help']
+        self.arguments = [MAYA_BATCH, '-help']
 
     def archive(self, path):
         self.log = f'{path}.log'
@@ -90,7 +95,11 @@ class TaskItem(QListWidgetItem):
             'args': ['noAutoloadPlugins'],
             'kwargs': {'archive': path, 'log': self.log},
         }
-        self.arguments = ['-archive', path, '-log', self.log, 'noAutoloadPlugins']
+        self.arguments = [MAYA_BATCH, '-archive', path, '-log', self.log, 'noAutoloadPlugins']
+
+    def render(self, path):
+        self.log = f'{path}.log'
+        self.arguments = [MAYA_BATCH, '-r', 'hw2', '-s', '1.0', '-e', '10.0', '-of', '.png', '-keepMel', '-log', self.log, path]
 
 
 class FileItem(QListWidgetItem):
@@ -113,7 +122,7 @@ class MainWindow(QMainWindow):
 
         self.connect_event()
         self.add_presets()
-        self.add_file(r"d:\Projects\LAY\GWC\_Shots\Quillen_MSEQ.ma")
+        self.add_file(r"\\vnnas\projects\PAC\11_ProjectSpace\03_Workflow\Shots\CIN.DLC1.M1.PRE-Shot0050\Scenefiles\anm\Animation\shot_CIN.DLC1.M1.PRE-Shot0050_anm_Animation_v0035_Anim_vdo_.mb")
         self.ui.show()
 
     def connect_event(self):
@@ -139,8 +148,9 @@ class MainWindow(QMainWindow):
                 if item:
                     a = QAction('Remove files', self)
                     a.triggered.connect(lambda: self.load_file())
+                    menu.addAction(a)
 
-            menu.exec_(QCursor.pos())
+            menu.exec(QCursor.pos())
 
         return super().eventFilter(source, event)
 
@@ -152,38 +162,26 @@ class MainWindow(QMainWindow):
         for i in range(self.ui.lw_files.count()):
             f = self.ui.lw_files.item(i)
             t = self.ui.lw_tasks.currentItem()
-            kwargs = t.preset.get('kwargs', {})
-            if 'archive' in kwargs:
+            task = t.text()
+
+            if task == 'Archive':
                 t.archive(f.path)
                 args = t.arguments
-            elif 'help' in kwargs:
+            elif task == 'Help':
                 t.help()
                 args = t.arguments
+            elif task == 'Playblast':
+                t.render(f.path)
+                args = t.arguments
             else:
+                kwargs = t.preset.get('kwargs', {})
                 kwargs.update({'file': f.path})
-                args = self.gen_args(t.preset)
+                args = gen_args(t.preset)
+                args.insert(0, MAYA_BATCH)
 
-            args.insert(0, MAYA_BATCH)
+            # args.insert(0, MAYA_BATCH)
+            print(args)
             self.job.execute_detach(args)
-
-    def gen_args(self, preset: dict = None, *args, **kwargs):
-
-        arguments = []
-        if preset:
-            args = list(args)
-            args.extend(preset.get('args', []))
-
-            kwargs.update(preset.get('kwargs', {}))
-
-        for k, v in kwargs.items():
-            arguments.extend([f'-{k}', v])
-
-        for a in args:
-            if not a.startswith('-'):
-                a = f'-{a}'
-            arguments.append(a)
-
-        return arguments
 
     # end::startJob[]
     def display_result(self, job_id, data):
