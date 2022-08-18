@@ -16,8 +16,8 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
-RESOURCE = resource_path('Resources') + '\\'
 MAIN_UI = resource_path('utils') + '\\main.ui'
+PRESET_PATH = resource_path('preset') + '\\'
 
 MAYA_LOCATION = r'C:\Program Files\Autodesk\Maya2018'
 MAYA_BATCH = os.path.join(MAYA_LOCATION, 'bin', 'mayabatch.exe')
@@ -39,11 +39,11 @@ PRESET_TASKS = {
     },
     'Archive': {
         'args': ['noAutoloadPlugins'],
-        'kwargs': {'archive': '%FILE%', 'log': LOG_FILE},
+        'kwargs': {'archive': '', 'log': LOG_FILE},
     },
     'Test': {
         'args': ['noAutoloadPlugins'],
-        'kwargs': {'command': COMMAND, 'log': LOG_FILE},
+        'kwargs': {'command': MAYA_SCRIPT, 'log': LOG_FILE},
     },
     'Playblast': {
         'args': [],
@@ -75,31 +75,102 @@ def gen_args(preset: dict = None, *args, **kwargs):
     return arguments
 
 
+def gen_presets(path=PRESET_PATH):
+    scripts = []
+    for f in os.listdir(os.path.dirname(__file__)):
+        if f == '__init__.py':
+            continue
+        scripts.append(f)
+    return scripts
+
+
+def set_log_for_file(file):
+    basename = os.path.basename(file)
+    return os.path.join(TEMP, f'{basename}.log')
+
+
+class Arguments(object):
+
+    def __init__(self, *args, **kwargs):
+
+        self.file = None
+        self.command = None
+        self.log = 'layoutBatch.log'
+
+        arguments = [MAYA_BATCH]
+        for a in args:
+            if not a.startswith('-'):
+                a = f'-{a}'
+            arguments.append(a)
+
+        for k, v in kwargs.items():
+            v = v.replace('\\', '/')
+            if k == 'file':
+                self.file = v
+                arguments.extend([f'-{k}', f'{v}'])
+                continue
+
+            elif k == 'command':
+                self.command = v
+                arguments.extend([f'-{k}', f'python("exec(open(\'{v}\').read())")'])
+                continue
+
+            arguments.extend([f'-{k}', f'{v}'])
+
+        self.arguments = arguments
+        self.add_log()
+
+    def add_log(self):
+        if self.command:
+            basename = os.path.basename(self.command)
+            self.log = os.path.join(TEMP, f'{basename}.log')
+            return self.log
+
+        self.log = os.path.join(TEMP, f'{self.log}.log')
+
+    def add_file(self, file):
+        self.arguments.extend([f'-file', f'{file}'])
+
+
 class TaskItem(QListWidgetItem):
 
-    def __init__(self, name, preset=None):
+    def __init__(self, name, arguments):
         super().__init__(name)
-        self.preset = preset
         self.log = None
-        self.arguments = []
 
-    def help(self):
-        self.preset = {
-            'args': ['help'],
-        }
-        self.arguments = [MAYA_BATCH, '-help']
+        if isinstance(arguments, dict):
 
-    def archive(self, path):
-        self.log = f'{path}.log'
-        self.preset = {
-            'args': ['noAutoloadPlugins'],
-            'kwargs': {'archive': path, 'log': self.log},
-        }
-        self.arguments = [MAYA_BATCH, '-archive', path, '-log', self.log, 'noAutoloadPlugins']
+            if 'args' in arguments or 'kwargs' in arguments:
+                args = arguments['args']
+                kwargs = arguments['kwargs']
+                arguments = Arguments(*args, **kwargs)
+            else:
+                arguments = Arguments(**arguments)
 
-    def render(self, path):
-        self.log = f'{path}.log'
-        self.arguments = [MAYA_BATCH, '-r', 'hw2', '-s', '1.0', '-e', '10.0', '-of', '.png', '-keepMel', '-log', self.log, path]
+        self.arguments = arguments
+
+    # def help(self):
+    #     self.preset = {
+    #         'args': ['help'],
+    #     }
+    #     self.arguments = [MAYA_BATCH, '-help']
+    #
+    # def archive(self, path):
+    #     self.log = f'{path}.log'
+    #     self.preset = {
+    #         'args': ['noAutoloadPlugins'],
+    #         'kwargs': {'archive': path, 'log': self.log},
+    #     }
+    #     self.arguments = [MAYA_BATCH, '-archive', path, '-log', self.log, 'noAutoloadPlugins']
+    #
+    # def render(self, path):
+    #     self.log = f'{path}.log'
+    #     self.arguments = [MAYA_BATCH, '-r', 'hw2', '-s', '1.0', '-e', '10.0', '-of', '.png', '-keepMel',
+    #                       '-log', self.log, path]
+    #
+    # def script(self, *args, **kwargs):
+    #     a = Arguments(*args, **kwargs)
+    #     self.arguments = a.arguments
 
 
 class FileItem(QListWidgetItem):
@@ -122,7 +193,7 @@ class MainWindow(QMainWindow):
 
         self.connect_event()
         self.add_presets()
-        self.add_file(r"\\vnnas\projects\PAC\11_ProjectSpace\03_Workflow\Shots\CIN.DLC1.M1.PRE-Shot0050\Scenefiles\anm\Animation\shot_CIN.DLC1.M1.PRE-Shot0050_anm_Animation_v0035_Anim_vdo_.mb")
+        # self.add_file(r"\\vnnas\projects\PAC\11_ProjectSpace\03_Workflow\Shots\CIN.DLC1.M1.PRE-Shot0050\Scenefiles\anm\Animation\shot_CIN.DLC1.M1.PRE-Shot0050_anm_Animation_v0035_Anim_vdo_.mb")
         self.ui.show()
 
     def connect_event(self):
@@ -174,10 +245,9 @@ class MainWindow(QMainWindow):
                 t.render(f.path)
                 args = t.arguments
             else:
-                kwargs = t.preset.get('kwargs', {})
-                kwargs.update({'file': f.path})
-                args = gen_args(t.preset)
-                args.insert(0, MAYA_BATCH)
+                a = t.arguments
+                a.add_file(f.path)
+                args = a.arguments
 
             # args.insert(0, MAYA_BATCH)
             print(args)
@@ -215,8 +285,16 @@ class MainWindow(QMainWindow):
         for k, v in presets.items():
             item = TaskItem(k, v)
             lw.addItem(item)
-            print(item.preset)
-            # print(item.data(Qt.UserRole))
+            a = item.arguments
+            print(a.arguments)
+
+        for f in os.listdir(PRESET_PATH):
+            if f == '__init__.py':
+                continue
+            a = Arguments(script=os.path.join(PRESET_PATH, f))
+            item = TaskItem(f, a)
+            lw.addItem(item)
+            print(a.arguments)
 
 
 if __name__ == "__main__":

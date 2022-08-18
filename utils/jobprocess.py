@@ -11,12 +11,6 @@ logging.basicConfig(level=logging.INFO, filename=LOG_FILE, format='%(message)s')
 
 
 def call(*args):
-    """
-    Runs the given args in a subprocess.Popen, and then calls the function
-    on_exit when the subprocess completes.
-    on_exit is a callable object, and popen_args is a list/tuple of args that
-    would give to subprocess.Popen.
-    """
 
     def run_in_thread(arguments, on_exit, on_progress, on_log):
 
@@ -34,7 +28,7 @@ def call(*args):
                 if output:
                     logger.log(logging.INFO, output)
                     sys.stdout.write(output)
-                    on_log(output[:63])  # log callback
+                    on_log(output[:63] + '...')  # log callback
 
                 else:
                     break
