@@ -67,7 +67,8 @@ FIELD_TYPE_POINT_2D_INDEX = 3
 FIELD_TYPE_POINT_3D_INDEX = 4
 FIELD_TYPE_LINE_2D_INDEX = 5
 FIELD_TYPE_LINE_3D_INDEX = 6
-FIELD_TYPE_RULE_THIRDS_INDEX = 7 # Layout Add-ins
+FIELD_TYPE_RULE_THIRDS_INDEX = 7  # Rule of thirds
+FIELD_TYPE_BURN_INS_INDEX = 8  # Burn ins
 
 # Types of field names.
 FIELD_TYPE_NONE_NAME = 'None'
@@ -78,6 +79,7 @@ FIELD_TYPE_POINT_3D_NAME = 'Point 3D'
 FIELD_TYPE_LINE_2D_NAME = 'Line 2D'
 FIELD_TYPE_LINE_3D_NAME = 'Line 3D'
 FIELD_TYPE_RULE_THIRDS_NAME = 'Rule of Thirds'
+FIELD_TYPE_BURN_INS_NAME = 'Burn Ins'
 
 # Links both name and indices together.
 FIELD_TYPES = [
@@ -89,6 +91,7 @@ FIELD_TYPES = [
     (FIELD_TYPE_LINE_2D_INDEX, FIELD_TYPE_LINE_2D_NAME),
     (FIELD_TYPE_LINE_3D_INDEX, FIELD_TYPE_LINE_3D_NAME),
     (FIELD_TYPE_RULE_THIRDS_INDEX, FIELD_TYPE_RULE_THIRDS_NAME),
+    (FIELD_TYPE_BURN_INS_INDEX, FIELD_TYPE_BURN_INS_NAME),
 ]
 
 # Alignment values.
@@ -667,7 +670,7 @@ class HUDNode(OpenMaya.MPxSurfaceShape):
 
         # Field Text Value attribute
         string_data = OpenMaya.MFnStringData()
-        data_object = string_data.create("Text")
+        data_object = string_data.create(r"{lens_focal_length}mm||{frame_integer:04d}|{shot_name}||{shot_current_frame:04d}/{shot_duration:04d}")
         HUDNode.m_field_text_value = tAttr.create(
             "fieldTextValue", "fldtxtv",
             OpenMaya.MFnData.kString,
@@ -1106,6 +1109,9 @@ class HUDNodeDrawOverride(OpenMayaRender.MPxDrawOverride):
         camera_fn = OpenMaya.MFnCamera(camera_path)
         camera_tfm_path = camera_path.pop()
         camera_tfm_fn = OpenMaya.MFnTransform(camera_tfm_path)
+        camera_shape_fn = camera_path.extendToShape()
+        camera_shape = camera_shape_fn.partialPathName()
+
         space = OpenMaya.MSpace.kWorld
         camera_translate_vec = camera_tfm_fn.translation(space)
         camera_quat_rotation = camera_tfm_fn.rotation(space, asQuaternion=True)
@@ -1116,12 +1122,25 @@ class HUDNodeDrawOverride(OpenMayaRender.MPxDrawOverride):
         camera_pan = math.degrees(camera_rotation.y)
         camera_roll = math.degrees(camera_rotation.z)
 
-        # Calculate the 'camera speed' in various different speed metics.
-        # camera_speed_plug = OpenMaya.MPlug(node_obj, HUDNode.m_camera_speed_raw)
-        # camera_speed_raw = camera_speed_plug.asDouble() * scene_scale_factor
-
         # Get value
+        # Get current time
         frame = maya.cmds.currentTime(query=True)
+
+        # Get current shot
+        shots = maya.cmds.listConnections(camera_shape + '.message', d=True, s=False, type='shot')
+        if shots:
+            shot_name = maya.cmds.shot(shots[0], q=True, sn=True)
+            shot_start = maya.cmds.shot(shots[0], q=True, sst=True)
+            shot_end = maya.cmds.shot(shots[0], q=True, set=True)
+        else:
+            shot_name = ''
+            shot_start = maya.cmds.playbackOptions(q=True, min=True)
+            shot_end = maya.cmds.playbackOptions(q=True, max=True)
+
+        shot_duration = shot_end - shot_start + 1.0
+        shot_current_frame = frame - shot_start + 1.0
+        
+        # Caculate speed
         point_now = camera_tfm_fn.translation(space)
 
         # Point at previous frame
@@ -1227,6 +1246,13 @@ class HUDNodeDrawOverride(OpenMayaRender.MPxDrawOverride):
             # Shot Frame
             'frame_integer': int(frame),
             'frame_float': frame,
+
+            # Shot Info
+            'shot_name': shot_name,
+            'shot_start': int(shot_start),
+            'shot_end': int(shot_end),
+            'shot_duration': int(shot_duration),
+            'shot_current_frame': int(shot_current_frame),
 
             # Film Back
             'film_back_width_inches': film_back_width,
@@ -1977,6 +2003,69 @@ class HUDNodeDrawOverride(OpenMayaRender.MPxDrawOverride):
         return
 
     @classmethod
+    def draw_burn_ins(cls, draw_manager,
+                           position,
+                           text_size,
+                           text_align,
+                           text_bold,
+                           text_italic,
+                           text_font_name,
+                           color, alpha,
+                           text,
+                           pos_lower_left, pos_lower_right,
+                           pos_upper_left, pos_upper_right,
+                           film_width, film_height,
+                           film_lower_left, film_upper_right,
+                           port_width, port_height):
+        
+        text_align_horizontal = \
+            MAP_TEXT_ALIGN_TO_ALIGN_HORIZONTAL.get(text_align, 0)
+
+        # Font properties
+        weight = OpenMayaRender.MUIDrawManager.kWeightLight
+        incline = OpenMayaRender.MUIDrawManager.kInclineNormal
+        if text_bold:
+            weight = OpenMayaRender.MUIDrawManager.kWeightBold
+        if text_italic:
+            incline = OpenMayaRender.MUIDrawManager.kInclineItalic
+
+        # Calculate position and font size.
+        text_size_film_coord = cls.film_coord_to_corners(
+            -1.0, -1.0 + (text_size * 0.01 * 2.0),
+            film_lower_left,
+            film_upper_right)
+        text_font_size = text_size_film_coord[1] - pos_lower_left[1]
+        text_font_size = int(text_font_size)
+
+        draw_color = OpenMaya.MColor((color[0], color[1], color[2], alpha))
+        draw_manager.setColor(draw_color)
+        draw_manager.setFontSize(text_font_size)
+        draw_manager.setFontWeight(weight)
+        draw_manager.setFontIncline(incline)
+        draw_manager.setFontName(text_font_name)
+
+        def quick_2d_text(texts, pos_x, pos_y, align_h):
+            if texts:
+                text = texts[0]
+                position_x, position_y = cls.film_coord_to_corners(
+                    pos_x, pos_y,
+                    film_lower_left,
+                    film_upper_right)
+
+                position_y += -text_font_size  # align middle
+                position = OpenMaya.MPoint(position_x, position_y)
+                draw_manager.text2d(position, text, align_h)
+        
+        texts = text.split('|')
+        quick_2d_text(texts[0:1], -0.96, 0.96, OpenMayaRender.MUIDrawManager.kLeft)
+        quick_2d_text(texts[1:2], 0, 0.96, OpenMayaRender.MUIDrawManager.kCenter)
+        quick_2d_text(texts[2:3], 0.96, 0.96, OpenMayaRender.MUIDrawManager.kRight)
+        quick_2d_text(texts[3:4], -0.96, -0.9, OpenMayaRender.MUIDrawManager.kLeft)
+        quick_2d_text(texts[4:5], 0, -0.9, OpenMayaRender.MUIDrawManager.kCenter)
+        quick_2d_text(texts[5:6], 0.96, -0.9, OpenMayaRender.MUIDrawManager.kRight)
+        return
+
+    @classmethod
     def draw_field_3d_text(cls,
                            draw_manager,
                            obj_path, position,
@@ -2310,6 +2399,26 @@ class HUDNodeDrawOverride(OpenMayaRender.MPxDrawOverride):
                 pos_lower_left,
                 film_lower_left, film_upper_right)
 
+        elif field_type == FIELD_TYPE_BURN_INS_INDEX:
+            draw_text = cls.format_text_data(
+                text,
+                field_general_values,
+                value_a, value_b, value_c, value_d
+            )
+            cls.draw_burn_ins(
+                draw_manager,
+                pos_a,
+                text_size * text_size_multiplier,
+                text_align,
+                text_bold, text_italic, text_font_name,
+                text_color, text_alpha,
+                draw_text,
+                pos_lower_left, pos_lower_right,
+                pos_upper_left, pos_upper_right,
+                film_width, film_height,
+                film_lower_left, film_upper_right,
+                port_width, port_height)
+
         else:
             msg = 'Field Type value is invalid; %r'
             raise ValueError(msg % field_type)
@@ -2477,7 +2586,7 @@ class HUDNodeDrawOverride(OpenMayaRender.MPxDrawOverride):
             draw_manager.endDrawable()
 
         # Draw fields.
-        if len(fields_data):
+        if fields_data:
             draw_manager.beginDrawable()
             for field_data in fields_data:
                 self.draw_field(
