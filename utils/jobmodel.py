@@ -126,6 +126,7 @@ class JobManager(QAbstractListModel):
 
     def handle_log(self, job_id, log):
         self._state[job_id]["log"] = log
+        self.result.emit(job_id, log)
         self.layoutChanged.emit()
 
     def done(self, job_id, *arg):

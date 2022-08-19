@@ -1,9 +1,10 @@
 import os
 import re
 import sys
+import time
 
 from PySide6.QtCore import QObject, QEvent
-from PySide6.QtGui import QCursor, QAction
+from PySide6.QtGui import QCursor, QAction, QActionGroup
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import (QApplication, QMainWindow, QFileDialog, QMenu, QListWidgetItem)
 
@@ -19,7 +20,7 @@ def resource_path(relative_path):
 MAIN_UI = resource_path('utils') + '\\main.ui'
 PRESET_PATH = resource_path('preset') + '\\'
 
-MAYA_LOCATION = r'C:\Program Files\Autodesk\Maya2018'
+MAYA_LOCATION = r'C:\Program Files\Autodesk\Maya2023'
 MAYA_BATCH = os.path.join(MAYA_LOCATION, 'bin', 'mayabatch.exe')
 MAYA_RENDER = os.path.join(MAYA_LOCATION, 'bin', 'render.exe')
 MAYA_PY = os.path.join(MAYA_LOCATION, 'bin', 'mayapy.exe')
@@ -52,11 +53,14 @@ PRESET_TASKS = {
 }
 
 
-PATTERN = re.compile(r'((\w:)|(\.))((/(?!/)(?!/)|\\{2})[^\n?"|></\\:*]+)+')
+def is_valid_path(string: str):
+    pattern = re.compile(r'((\w:)|(\.))((/(?!/)(?!/)|\\{2})[^\n?"|></\\:*]+)+')
+    if string and isinstance(string, str) and pattern.match(string):
+        return True
+    return False
 
 
 def gen_args(preset: dict = None, *args, **kwargs):
-
     arguments = []
     if preset:
         args = list(args)
@@ -89,47 +93,78 @@ def set_log_for_file(file):
     return os.path.join(TEMP, f'{basename}.log')
 
 
-class Arguments(object):
+class MayaBatch(object):
+
+    maya_location = r'C:\Program Files\Autodesk'
+    maya_version = r'Maya2023'
+    maya_batch = r'bin\mayabatch.exe'
 
     def __init__(self, *args, **kwargs):
 
         self.file = None
-        self.command = None
         self.log = 'layoutBatch.log'
 
-        arguments = [MAYA_BATCH]
+        self.args = []
+        self.set_batch()
+        self.add_args(*args)
+        self.add_kwargs(**kwargs)
+
+    @classmethod
+    def set_maya_version(cls, version):
+        cls.maya_version = version
+        print('Set maya version to {0}'.format(cls.maya_version))
+
+    def set_batch(self):
+        self.args = [os.path.join(self.maya_location, self.maya_version, self.maya_batch)]
+        return self.args
+    def add_args(self, *args):
         for a in args:
             if not a.startswith('-'):
                 a = f'-{a}'
-            arguments.append(a)
-
+            if a not in self.args:
+                self.args.append(a)
+    def add_kwargs(self, **kwargs):
         for k, v in kwargs.items():
+            k = f'-{k}'
             v = v.replace('\\', '/')
-            if k == 'file':
-                self.file = v
-                arguments.extend([f'-{k}', f'{v}'])
-                continue
+            if k == '-command':
+                v = f'python("exec(open(\'{v}\').read())")'
 
-            elif k == 'command':
-                self.command = v
-                arguments.extend([f'-{k}', f'python("exec(open(\'{v}\').read())")'])
-                continue
+            if k not in self.args:
+                self.args.extend([k, v])
+    def remove_flag(self, flag):
+        if flag in self.args:
+            i = self.args.index(flag)
+            self.args.pop(i)  # remove flag
+            if self.args[i].startswith('-'):
+                self.args.pop(i)  # remove flag variable
 
-            arguments.extend([f'-{k}', f'{v}'])
+    def help(self):
+        self.set_batch()
+        self.args.append('-help')
 
-        self.arguments = arguments
-        self.add_log()
+    def set_log(self):
+        self.remove_flag('-log')
 
-    def add_log(self):
-        if self.command:
-            basename = os.path.basename(self.command)
-            self.log = os.path.join(TEMP, f'{basename}.log')
-            return self.log
+        log_name = 'mayaBatch'
+        for a in self.args:
+            if is_valid_path(a):
+                print(a)
+                log_name = os.path.basename(a)
+                break
 
-        self.log = os.path.join(TEMP, f'{self.log}.log')
+        self.log = os.path.join(TEMP, f'{log_name}.{time.strftime("%H%M%S")}.log')
+        self.args.extend(['-log', f'{self.log}'])
 
-    def add_file(self, file):
-        self.arguments.extend([f'-file', f'{file}'])
+    def set_file(self, file):
+        self.remove_flag('-file')
+        self.args.extend([f'-file', f'{file}'])
+        self.set_log()
+
+    def set_archive(self, file):
+        self.remove_flag('-archive')
+        self.args.extend(['-archive', f'{file}'])
+        self.set_log()
 
 
 class TaskItem(QListWidgetItem):
@@ -139,15 +174,14 @@ class TaskItem(QListWidgetItem):
         self.log = None
 
         if isinstance(arguments, dict):
-
             if 'args' in arguments or 'kwargs' in arguments:
                 args = arguments['args']
                 kwargs = arguments['kwargs']
-                arguments = Arguments(*args, **kwargs)
+                self.batch = MayaBatch(*args, **kwargs)
             else:
-                arguments = Arguments(**arguments)
-
-        self.arguments = arguments
+                self.batch = MayaBatch(**arguments)
+        else:
+            self.batch = arguments
 
     # def help(self):
     #     self.preset = {
@@ -185,19 +219,35 @@ class MainWindow(QMainWindow):
         super().__init__()
         ui = QUiLoader()
         self.ui = ui.load(MAIN_UI)
-
         self.job = jobmodel.JobManager()
-        self.ui.lv_progress.setModel(self.job)
-        delegate = jobmodel.ProgressBarDelegate()
-        self.ui.lv_progress.setItemDelegate(delegate)
 
+        self.build_ui()
         self.connect_event()
         self.add_presets()
         # self.add_file(r"\\vnnas\projects\PAC\11_ProjectSpace\03_Workflow\Shots\CIN.DLC1.M1.PRE-Shot0050\Scenefiles\anm\Animation\shot_CIN.DLC1.M1.PRE-Shot0050_anm_Animation_v0035_Anim_vdo_.mb")
         self.ui.show()
 
-    def connect_event(self):
+    def build_ui(self):
+
+        self.ui.lv_progress.setModel(self.job)
+        delegate = jobmodel.ProgressBarDelegate()
+        self.ui.lv_progress.setItemDelegate(delegate)
+
+        maya_group = QActionGroup(self)
+        maya_group.setExclusive(True)
+        maya_group.addAction(self.ui.action2018)
+        maya_group.addAction(self.ui.action2020)
+        maya_group.addAction(self.ui.action2023)
+
         self.ui.pte_log.setReadOnly(True)
+
+    def connect_event(self):
+        self.ui.action2018.triggered.connect(lambda: MayaBatch.set_maya_version('Maya2018'))
+        self.ui.action2020.triggered.connect(lambda: MayaBatch.set_maya_version('Maya2020'))
+        self.ui.action2023.triggered.connect(lambda: MayaBatch.set_maya_version('Maya2023'))
+
+        self.ui.actionHelp.triggered.connect(lambda: self.quick_run('help'))
+        self.ui.actionVersion.triggered.connect(lambda: self.quick_run('v'))
         self.job.status.connect(self.ui.statusbar.showMessage)
         self.job.result.connect(self.display_result)
         self.ui.b_execute.pressed.connect(self.run_command)
@@ -228,35 +278,34 @@ class MainWindow(QMainWindow):
     def test(self):
         self.job.execute_detach(['python', 'test.py'])
 
+    def quick_run(self, flag):
+        batch = MayaBatch(flag)
+        self.job.execute_detach(batch.args)
+
     # tag::startJob[]
     def run_command(self):
-        for i in range(self.ui.lw_files.count()):
-            f = self.ui.lw_files.item(i)
-            t = self.ui.lw_tasks.currentItem()
-            task = t.text()
+        t = self.ui.lw_tasks.currentItem()
+        task = t.text()
+        batch = t.batch
+        if task == 'Help':
+            batch.help()
+            self.job.execute_detach(batch.args)
 
-            if task == 'Archive':
-                t.archive(f.path)
-                args = t.arguments
-            elif task == 'Help':
-                t.help()
-                args = t.arguments
-            elif task == 'Playblast':
-                t.render(f.path)
-                args = t.arguments
-            else:
-                a = t.arguments
-                a.add_file(f.path)
-                args = a.arguments
-
-            # args.insert(0, MAYA_BATCH)
-            print(args)
-            self.job.execute_detach(args)
+        else:
+            for i in range(self.ui.lw_files.count()):
+                f = self.ui.lw_files.item(i)
+                if task == 'Archive':
+                    batch.set_archive(f.path)
+                else:
+                    batch.set_file(f.path)
+                # args.insert(0, MAYA_BATCH)
+                print(batch.args)
+                self.job.execute_detach(batch.args)
 
     # end::startJob[]
     def display_result(self, job_id, data):
         if data:
-            self.ui.pte_log.appendPlainText("WORKER %s: %s" % (job_id, data))
+            self.ui.pte_log.appendPlainText(data)
 
     def display_log(self, data):
         if data:
@@ -285,16 +334,16 @@ class MainWindow(QMainWindow):
         for k, v in presets.items():
             item = TaskItem(k, v)
             lw.addItem(item)
-            a = item.arguments
-            print(a.arguments)
+            a = item.batch
+            print(a.args)
 
         for f in os.listdir(PRESET_PATH):
             if f == '__init__.py':
                 continue
-            a = Arguments(script=os.path.join(PRESET_PATH, f))
+            a = MayaBatch(script=os.path.join(PRESET_PATH, f))
             item = TaskItem(f, a)
             lw.addItem(item)
-            print(a.arguments)
+            print(a.args)
 
 
 if __name__ == "__main__":

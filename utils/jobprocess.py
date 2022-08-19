@@ -3,11 +3,14 @@ import subprocess
 import threading
 import os
 import sys
+import time
+
 
 TEMP = r'D:\temp'
-LOG_FILE = os.path.join(TEMP, 'test.log')
+date_time = time.strftime("%Y%m%d%H%M%S")
+LOG_FILE = os.path.join(TEMP, f'test.{date_time}.log')
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, filename=LOG_FILE, format='%(message)s')
+logging.basicConfig(level=logging.INFO, filename=LOG_FILE, format='%(asctime)s %(message)s')
 
 
 def call(*args):
@@ -28,7 +31,7 @@ def call(*args):
                 if output:
                     logger.log(logging.INFO, output)
                     sys.stdout.write(output)
-                    on_log(output[:63] + '...')  # log callback
+                    on_log(output)  # log callback
 
                 else:
                     break
@@ -40,6 +43,4 @@ def call(*args):
         on_exit()  # exit callback
 
     thread = threading.Thread(target=run_in_thread, args=args)
-    # thread.start()
-    # returns immediately after the thread starts
     return thread
