@@ -32,7 +32,11 @@
         <enum>Qt::Horizontal</enum>
        </property>
        <widget class="QListView" name="lv_progress"/>
-       <widget class="QPlainTextEdit" name="pte_log"/>
+       <widget class="QPlainTextEdit" name="pte_log">
+        <property name="contextMenuPolicy">
+         <enum>Qt::CustomContextMenu</enum>
+        </property>
+       </widget>
       </widget>
      </widget>
     </item>
@@ -146,6 +150,9 @@
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>2018</string>
    </property>
@@ -163,7 +170,7 @@
     <bool>true</bool>
    </property>
    <property name="checked">
-    <bool>true</bool>
+    <bool>false</bool>
    </property>
    <property name="text">
     <string>2023</string>

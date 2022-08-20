@@ -18,7 +18,7 @@ def call(*args):
     def run_in_thread(arguments, on_exit, on_progress, on_log):
 
         proc = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                creationflags=subprocess.CREATE_NEW_CONSOLE)
+                                creationflags=subprocess.CREATE_NEW_CONSOLE, bufsize=1)
 
         def check_io():
             i = 0
@@ -30,7 +30,6 @@ def call(*args):
                 output = proc.stdout.readline().decode()
                 if output:
                     logger.log(logging.INFO, output)
-                    sys.stdout.write(output)
                     on_log(output)  # log callback
 
                 else:

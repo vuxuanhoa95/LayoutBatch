@@ -20,7 +20,7 @@ def resource_path(relative_path):
 MAIN_UI = resource_path('utils') + '\\main.ui'
 PRESET_PATH = resource_path('preset') + '\\'
 
-MAYA_LOCATION = r'C:\Program Files\Autodesk\Maya2023'
+MAYA_LOCATION = r'C:\Program Files\Autodesk\Maya2018'
 MAYA_BATCH = os.path.join(MAYA_LOCATION, 'bin', 'mayabatch.exe')
 MAYA_RENDER = os.path.join(MAYA_LOCATION, 'bin', 'render.exe')
 MAYA_PY = os.path.join(MAYA_LOCATION, 'bin', 'mayapy.exe')
@@ -96,7 +96,7 @@ def set_log_for_file(file):
 class MayaBatch(object):
 
     maya_location = r'C:\Program Files\Autodesk'
-    maya_version = r'Maya2023'
+    maya_version = r'Maya2018'
     maya_batch = r'bin\mayabatch.exe'
 
     def __init__(self, *args, **kwargs):
@@ -117,12 +117,14 @@ class MayaBatch(object):
     def set_batch(self):
         self.args = [os.path.join(self.maya_location, self.maya_version, self.maya_batch)]
         return self.args
+
     def add_args(self, *args):
         for a in args:
             if not a.startswith('-'):
                 a = f'-{a}'
             if a not in self.args:
                 self.args.append(a)
+
     def add_kwargs(self, **kwargs):
         for k, v in kwargs.items():
             k = f'-{k}'
@@ -132,6 +134,7 @@ class MayaBatch(object):
 
             if k not in self.args:
                 self.args.extend([k, v])
+
     def remove_flag(self, flag):
         if flag in self.args:
             i = self.args.index(flag)
@@ -255,6 +258,7 @@ class MainWindow(QMainWindow):
         self.ui.b_test.pressed.connect(self.test)
 
         self.ui.lw_files.installEventFilter(self)
+        self.ui.pte_log.customContextMenuRequested.connect(self.pte_log_context_menu)
 
     def eventFilter(self, source: QObject, event: QEvent) -> bool:
         event_type = event.type()
@@ -272,8 +276,18 @@ class MainWindow(QMainWindow):
                     menu.addAction(a)
 
             menu.exec(QCursor.pos())
+            del menu
 
         return super().eventFilter(source, event)
+
+    def pte_log_context_menu(self, event):
+        source = self.ui.pte_log
+        menu = source.createStandardContextMenu()
+        a = QAction('Clear', self)
+        a.triggered.connect(lambda: self.ui.pte_log.clear())
+        menu.addAction(a)
+        menu.exec(source.mapToGlobal(event))
+        del menu
 
     def test(self):
         self.job.execute_detach(['python', 'test.py'])

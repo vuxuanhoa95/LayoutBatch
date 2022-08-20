@@ -193,4 +193,4 @@ class ProgressBarDelegate(QStyledItemDelegate):
 
         pen = QPen()
         pen.setColor(Qt.black)
-        painter.drawText(option.rect, Qt.AlignLeft, f'{job_id} | {status} | {log}')
+        painter.drawText(option.rect, Qt.AlignLeft, f'{job_id} | {status}')
