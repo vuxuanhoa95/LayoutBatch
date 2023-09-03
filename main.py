@@ -20,7 +20,7 @@ def resource_path(relative_path):
 MAIN_UI = resource_path('utils') + '\\main.ui'
 PRESET_PATH = resource_path('preset') + '\\'
 
-MAYA_LOCATION = r'C:\Program Files\Autodesk\Maya2018'
+MAYA_LOCATION = r'C:\Program Files\Autodesk\Maya2024'
 MAYA_BATCH = os.path.join(MAYA_LOCATION, 'bin', 'mayabatch.exe')
 MAYA_RENDER = os.path.join(MAYA_LOCATION, 'bin', 'render.exe')
 MAYA_PY = os.path.join(MAYA_LOCATION, 'bin', 'mayapy.exe')
@@ -96,7 +96,7 @@ def set_log_for_file(file):
 class MayaBatch(object):
 
     maya_location = r'C:\Program Files\Autodesk'
-    maya_version = r'Maya2018'
+    maya_version = r'Maya2023'
     maya_batch = r'bin\mayabatch.exe'
 
     def __init__(self, *args, **kwargs):

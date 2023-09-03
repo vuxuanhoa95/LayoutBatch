@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QStyledItemDelegate
 
 from utils import jobprocess
 
-TEMP = r'D:\temp'
+TEMP = r'C:\Dev\temp'
 LOG_FILE = 'layoutBatch.log'
 
 STATUS_COLORS = {
