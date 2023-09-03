@@ -122,6 +122,7 @@ class MayaBatch(object):
             path = os.path.join(cls.maya_location, f'{cls.maya_batch}.exe')
 
         cls.maya_executor = path.replace('\\','/')
+        print(cls.maya_executor)
         return cls.maya_executor
 
     def build_args(self):
@@ -220,7 +221,6 @@ class MainWindow(QMainWindow):
         self.connect_event()
         self.ui.show()
 
-        self.ui.action2024.setChecked(True)
         self.ui.actionMayapy.setChecked(True)
         self.add_presets()
         self.add_file(r"C:\Dev\temp\Base_Rig_Latest.mb")
@@ -237,7 +237,7 @@ class MainWindow(QMainWindow):
         from utils import maya_launcher as ml
         ver_group = QActionGroup(self)
         ver_group.setExclusive(True)
-        maya_versions = [2022, 2023, 2024]  # ml.installed_maya_versions()
+        maya_versions = ml.installed_maya_versions()
         for v in maya_versions:
             a = QAction(f'Maya {v}', self)
             a.setCheckable(True)
@@ -249,8 +249,11 @@ class MainWindow(QMainWindow):
         exe_group = QActionGroup(self)
         exe_group.setExclusive(True)
         exe_group.addAction(self.ui.actionMayabatch)
+        self.ui.actionMayabatch.triggered.connect(partial(MayaBatch.set_executor, executor='mayabatch'))
         exe_group.addAction(self.ui.actionMayapy)
+        self.ui.actionMayapy.triggered.connect(partial(MayaBatch.set_executor, executor='mayapy'))
         exe_group.addAction(self.ui.actionRender)
+        self.ui.actionRender.triggered.connect(partial(MayaBatch.set_executor, executor='render'))
 
         self.ui.pte_log.setReadOnly(True)
 
