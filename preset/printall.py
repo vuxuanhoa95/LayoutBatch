@@ -1,3 +1,4 @@
 import maya.cmds as cmds
 
-print(cmds.ls())
+for o in cmds.ls():
+    print(o)
