@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import time
+import logging
 
 from PySide6.QtCore import QObject, QEvent
 from PySide6.QtGui import QCursor, QAction, QActionGroup
@@ -10,6 +11,19 @@ from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import (QApplication, QMainWindow, QFileDialog, QMenu, QListWidgetItem)
 
 from utils import jobmodel
+
+
+file_handler = logging.FileHandler(filename='tmp.log')
+stdout_handler = logging.StreamHandler(stream=sys.stdout)
+handlers = [file_handler, stdout_handler]
+
+logging.basicConfig(
+    level=logging.DEBUG, 
+    format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s',
+    handlers=handlers
+)
+
+logger = logging.getLogger('LOGGER_NAME')
 
 
 def resource_path(relative_path):
@@ -100,6 +114,7 @@ class MayaBatch(object):
     def __init__(self, *args, **kwargs):
 
         self.file = None
+        self.script = None
         self.log = 'layoutBatch.log'
 
         self.args = []
@@ -122,7 +137,8 @@ class MayaBatch(object):
             path = os.path.join(cls.maya_location, f'{cls.maya_batch}.exe')
 
         cls.maya_executor = path.replace('\\','/')
-        print(cls.maya_executor)
+        print(f'Set executor: {cls.maya_executor}')
+        # logger.info(f'Set executor: {cls.maya_executor}')
         return cls.maya_executor
 
     def build_args(self):
@@ -142,6 +158,7 @@ class MayaBatch(object):
             k = f'-{k}'
             v = v.replace('\\', '/')
             if k == '-script':
+                self.script = v
                 k = '-command'
                 if self.maya_version in [2022, 2023, 2024]:
                     v = f'python("exec(open(\'{v}\').read())")'
@@ -207,6 +224,7 @@ class FileItem(QListWidgetItem):
 
     def __init__(self, name, path):
         super().__init__(name)
+        self.name = name
         self.path = path.replace('\\', '/')
 
 
@@ -281,11 +299,14 @@ class MainWindow(QMainWindow):
                 item = source.itemAt(event.pos())
                 if item:
                     a = QAction('Remove files', self)
-                    a.triggered.connect(lambda: self.load_file())
+                    a.triggered.connect(lambda: self.remove_file())
                     menu.addAction(a)
 
             menu.exec(QCursor.pos())
             del menu
+        elif event_type == QEvent.MouseButtonDblClick:
+            if source == self.ui.lw_files:
+                self.load_file()
 
         return super().eventFilter(source, event)
 
@@ -305,7 +326,6 @@ class MainWindow(QMainWindow):
         batch = MayaBatch(flag)
         self.job.execute_detach(batch.args)
 
-    # tag::startJob[]
     def run_command(self):
         t = self.ui.lw_tasks.currentItem()
         task = t.text()
@@ -339,6 +359,13 @@ class MainWindow(QMainWindow):
         for f in files:
             f = f.toLocalFile()
             self.add_file(f)
+
+    def remove_file(self):
+        selected_items = self.ui.lw_files.selectedItems()
+        if not selected_items: return
+        for item in selected_items:
+            print('Removed', item.name)
+            self.ui.lw_files.takeItem(self.ui.lw_files.row(item))
 
     def add_file(self, path):
         if os.path.exists(path):
