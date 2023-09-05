@@ -9,8 +9,8 @@ from PySide6.QtWidgets import QStyledItemDelegate
 
 from utils import jobprocess
 
-TEMP = r'D:\temp'
-LOG_FILE = 'layoutBatch.log'
+TEMP = r'C:\Dev\temp'
+LOG_FILE = 'mayabatch.log'
 
 STATUS_COLORS = {
     QProcess.NotRunning: "#b2df8a",

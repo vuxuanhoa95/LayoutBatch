@@ -6,7 +6,7 @@ import sys
 import time
 
 
-TEMP = r'D:\temp'
+TEMP = r'C:\Dev\temp'
 date_time = time.strftime("%Y%m%d%H%M%S")
 LOG_FILE = os.path.join(TEMP, f'test.{date_time}.log')
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ def call(*args):
     def run_in_thread(arguments, on_exit, on_progress, on_log):
 
         proc = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                creationflags=subprocess.CREATE_NEW_CONSOLE, bufsize=1)
+                                creationflags=subprocess.CREATE_NEW_CONSOLE)
 
         def check_io():
             i = 0

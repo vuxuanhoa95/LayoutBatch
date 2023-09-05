@@ -6,12 +6,12 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>710</width>
-    <height>573</height>
+    <width>509</width>
+    <height>380</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>Batch Executor</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -24,8 +24,8 @@
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>
-       <widget class="QListWidget" name="lw_files"/>
        <widget class="QListWidget" name="lw_tasks"/>
+       <widget class="QListWidget" name="lw_files"/>
       </widget>
       <widget class="QSplitter" name="splitter_2">
        <property name="orientation">
@@ -35,6 +35,13 @@
        <widget class="QPlainTextEdit" name="pte_log">
         <property name="contextMenuPolicy">
          <enum>Qt::CustomContextMenu</enum>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">color: rgb(255, 255, 255);
+background-color: rgb(0, 0, 0);</string>
+        </property>
+        <property name="plainText">
+         <string/>
         </property>
        </widget>
       </widget>
@@ -72,7 +79,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>710</width>
+     <width>509</width>
      <height>21</height>
     </rect>
    </property>
@@ -89,10 +96,6 @@
     <property name="title">
      <string>Maya</string>
     </property>
-    <addaction name="action2018"/>
-    <addaction name="action2020"/>
-    <addaction name="action2023"/>
-    <addaction name="separator"/>
     <addaction name="actionMayabatch"/>
     <addaction name="actionMayapy"/>
     <addaction name="actionRender"/>
@@ -146,7 +149,7 @@
     <string>Maya2023</string>
    </property>
   </action>
-  <action name="action2018">
+  <action name="action2022">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -154,15 +157,15 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>2018</string>
+    <string>2022</string>
    </property>
   </action>
-  <action name="action2020">
+  <action name="action2024">
    <property name="checkable">
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>2020</string>
+    <string>2024</string>
    </property>
   </action>
   <action name="action2023">
