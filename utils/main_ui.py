@@ -3,7 +3,11 @@
 ################################################################################
 ## Form generated from reading UI file 'main.ui'
 ##
+<<<<<<< HEAD
 ## Created by: Qt User Interface Compiler version 6.3.1
+=======
+## Created by: Qt User Interface Compiler version 6.5.2
+>>>>>>> 80554a15d5dddc230556079ecdcec9c7099219ed
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
