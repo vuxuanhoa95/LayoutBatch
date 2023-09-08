@@ -1,24 +1,32 @@
+'''
+"C:/Program Files/Autodesk/Maya2024/bin/mayapy.exe"
+__file__
+'''
+
 import maya.standalone
 maya.standalone.initialize()
-
-import maya.cmds as cmds
 
 import os
 import re
 import sys
 
+import maya.cmds as cmds
+import maya.mel as mel
+import maya.OpenMaya as api
+import maya.OpenMayaUI as OpenMayaUI
 
-script_dir = os.path.dirname(__file__)
-if not script_dir in sys.path:
-    sys.path.append(script_dir)
-    
-
-import maya_kit as mk
+# imports the module from the given path
+import importlib
+mk = importlib.machinery.SourceFileLoader("maya_kit", __MODULE__).load_module()
 
 cmds.loadPlugin("gameFbxExporter.mll")
-cmds.file("C:/Dev/MayaExportFBX/Base_Rig_Latest/Base_Rig_Latest.mb", o=True, f=True, executeScriptNodes=False)
+maya_file = __MAYAFILE__
+cmds.file(maya_file, o=True, f=True, executeScriptNodes=False)
 
-export_dir = 'C:/Dev/MayaExportFBX/Base_Rig_Latest/output'  # cmds.fileDialog2(dialogStyle=2, fileMode=2)
+export_dir = os.path.join(os.path.dirname(maya_file), "output")  # cmds.fileDialog2(dialogStyle=2, fileMode=2)
+if not os.path.isdir(export_dir):
+    os.mkdir(export_dir)
+
 look_in_group = '|Group|Geometry|geo|Skin'  # TODO: check namespace
 pattern = r'(?P<CH>\w+)_(?P<SkinVersion>\w+)_(?P<Rarity>\w+)_(?P<SkinName>\w+)_(?P<PartName>\w+)'
 default_export = ["DeformationSystem"]  # TODO: check namespace
@@ -37,9 +45,11 @@ for t in sorted(mesh_transform):
             mk.export_fbx(export_path, to_export)
             exported.append(export_path)
             print('Exported', export_path)
-        # if len(exported) >=5:
-        #     break
+        if len(exported) >=5:
+            break
 print('Finished exporting. Total file: ', len(exported))
 for f in sorted(exported):
     mk.cleanup_fbx(f)
     print('cleaned', f)
+
+

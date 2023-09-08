@@ -10,7 +10,7 @@ from PySide6.QtGui import QCursor, QAction, QActionGroup
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import (QApplication, QMainWindow, QFileDialog, QMenu, QListWidgetItem)
 
-from utils import jobmodel
+from utils import jobmodel, temp_script as ts
 
 
 file_handler = logging.FileHandler(filename='tmp.log')
@@ -194,13 +194,59 @@ class MayaBatch(object):
 
     def set_file(self, file):
         self.remove_flag('-file')
-        self.args.extend([f'-file', f'{file}'])
-        self.set_log()
+        if self.maya_batch == 'mayabatch':
+            self.args.extend([f'-file', f'{file}'])
+            self.set_log()
+        elif self.maya_batch == 'mayapy':
+            self.args.extend([f'{file}'])
+
 
     def set_archive(self, file):
         self.remove_flag('-archive')
         self.args.extend(['-archive', f'{file}'])
         self.set_log()
+
+
+class MayaPy(object):
+
+    maya_version = 2024
+    maya_executor = f'C:/Program Files/Autodesk/Maya{maya_version}/bin/mayapy.exe'
+
+    def __init__(self, *args, **kwargs):
+        self.script = None
+        self.log = 'layoutBatch.log'
+
+    @classmethod
+    def set_executor(cls, version: int=None, path=None):
+        if path:
+            if not path.endswith('.exe'):
+                print('Invalid executable path!')
+                return
+        else:
+            if version:
+                cls.maya_version = version
+            path = f'C:/Program Files/Autodesk/Maya{cls.maya_version}/bin/mayapy.exe'
+
+        cls.maya_executor = path.replace('\\','/')
+        print(f'Set executor: {cls.maya_executor}')
+        # logger.info(f'Set executor: {cls.maya_executor}')
+        return cls.maya_executor
+    
+
+    def build_args(self):
+        self.set_executor()
+        self.args = [self.maya_executor]
+        return self.args
+    
+
+    def help(self):
+        self.build_args()
+        self.args.append('--help')
+
+    
+    def set_script(self, path):
+        self.build_args()
+        self.args.append(path)
 
 
 class TaskItem(QListWidgetItem):
@@ -218,6 +264,21 @@ class TaskItem(QListWidgetItem):
                 self.batch = MayaBatch(**arguments)
         else:
             self.batch = arguments
+
+
+class TaskItem2(QListWidgetItem):
+
+    def __init__(self, name, path=None):
+        super().__init__(name)
+        self.path = path
+
+    def get_args(self):
+        return ts.parse_script_to_arguments()
+    
+    def convert_script(self, maya_file):
+        temp_script = ts.copy_script_to_temp_dir(self.path, resource_path(".temp"), maya_file, resource_path("module/maya_kit.py"))
+        args = ts.parse_script_to_arguments(temp_script)
+        return temp_script, args
 
 
 class FileItem(QListWidgetItem):
@@ -241,7 +302,7 @@ class MainWindow(QMainWindow):
 
         self.ui.actionMayapy.setChecked(True)
         self.add_presets()
-        self.add_file(r"C:\Dev\temp\Base_Rig_Latest.mb")
+        self.add_file(r"D:\temp\test\Base_Rig_Latest.mb")
 
 
     def build_ui(self):
@@ -279,7 +340,7 @@ class MainWindow(QMainWindow):
         self.ui.actionHelp.triggered.connect(lambda: self.quick_run('help'))
         self.ui.actionVersion.triggered.connect(lambda: self.quick_run('v'))
         self.job.status.connect(self.ui.statusbar.showMessage)
-        self.job.result.connect(self.display_result)
+        # self.job.result.connect(self.display_result)
         self.ui.b_execute.pressed.connect(self.run_command)
         self.ui.b_clear.pressed.connect(self.job.cleanup)
         self.ui.b_test.pressed.connect(self.test)
@@ -328,22 +389,31 @@ class MainWindow(QMainWindow):
 
     def run_command(self):
         t = self.ui.lw_tasks.currentItem()
-        task = t.text()
-        batch = t.batch
-        if task == 'Help':
-            batch.help()
-            self.job.execute_detach(batch.args)
-
-        else:
-            for i in range(self.ui.lw_files.count()):
-                f = self.ui.lw_files.item(i)
-                if task == 'Archive':
-                    batch.set_archive(f.path)
-                else:
-                    batch.set_file(f.path)
-                # args.insert(0, MAYA_BATCH)
-                print(batch.args)
+        if isinstance(t, TaskItem):
+            task = t.text()
+            batch = t.batch
+            if task == 'Help':
+                batch.help()
                 self.job.execute_detach(batch.args)
+
+            else:
+                for i in range(self.ui.lw_files.count()):
+                    f = self.ui.lw_files.item(i)
+                    if task == 'Archive':
+                        batch.set_archive(f.path)
+                    else:
+                        batch.set_file(f.path)
+                    # args.insert(0, MAYA_BATCH)
+                    print(batch.args)
+                    self.job.execute_detach(batch.args)
+        
+        elif isinstance(t, TaskItem2):
+            for i in range(self.ui.lw_files.count()):
+                f = self.ui.lw_files.item(i).path
+                temp_script, args = t.convert_script(f)
+                logfile = f'{temp_script}.log'
+                print(args, logfile)
+                self.job.execute_detach(args, logfile=logfile)
 
     # end::startJob[]
     def display_result(self, job_id, data):
@@ -388,10 +458,12 @@ class MainWindow(QMainWindow):
         for f in os.listdir(PRESET_PATH):
             if f == '__init__.py':
                 continue
-            a = MayaBatch(script=os.path.join(PRESET_PATH, f))
-            item = TaskItem(f, a)
+            # a = MayaBatch(script=os.path.join(PRESET_PATH, f))
+            # a = MayaPy()
+            # a.set_script(f)
+            item = TaskItem2(f, path=os.path.join(PRESET_PATH, f))
             lw.addItem(item)
-            print(a.args)
+            # print(a.args)
 
 
 if __name__ == "__main__":

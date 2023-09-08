@@ -1,13 +1,14 @@
-import logging
 import os
 import subprocess
+import threading
 import uuid
+from io import TextIOWrapper
+import sys
 
 from PySide6.QtCore import QAbstractListModel, Signal, QProcess, QRect, Qt, QObject, QTimer
 from PySide6.QtGui import QColor, QBrush, QPen
 from PySide6.QtWidgets import QStyledItemDelegate
 
-from utils import jobprocess
 
 TEMP = r'C:\Dev\temp'
 LOG_FILE = 'mayabatch.log'
@@ -24,40 +25,31 @@ STATES = {
     QProcess.Running: "Running...",
 }
 
-DEFAULT_STATE = {"progress": 0, "log": ''}
+DEFAULT_STATE = {"progress": 0, "log": '', 'logfile': None}
 
 
-class Worker(QObject):
-    finished = Signal()
-    progress = Signal(int)
-    log = Signal(str)
+def call(*args):
 
-    def __init__(self, arguments, log_file=None):
-        super().__init__()
-        self.arguments = arguments
-        log_file = log_file or LOG_FILE
-        self.log_file = os.path.join(TEMP, log_file)
+    def run_in_thread(arguments, on_exit, on_progress, on_log):
 
-    def run(self):
+        # proc = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        #                         creationflags=subprocess.CREATE_NEW_CONSOLE)
 
-        proc = subprocess.Popen(self.arguments, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                creationflags=subprocess.CREATE_NEW_CONSOLE)
+        proc = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         def check_io():
-            i = 0
-            logger = logging.getLogger(__name__)
-            logging.basicConfig(level=logging.INFO, filename=self.log_file,
-                                format='%(message)s')
+            progress = 0
             while True:
-                i += 1
-                if i >= 100:
-                    i = 1
-                self.progress.emit(i)  # progress callback
+                progress += 1
+                if progress >= 100:
+                    progress = 1
+                on_progress(progress)  # progress callback
+                
+                line = proc.stdout.readline().decode()
+                if line:
+                    sys.stdout.write(line)
+                    on_log(line)  # log callback
 
-                output = proc.stdout.readline().decode()
-                if output:
-                    logger.log(logging.INFO, output)
-                    self.log.emit(output[:31])
                 else:
                     break
 
@@ -65,7 +57,10 @@ class Worker(QObject):
             check_io()
 
         proc.wait()
-        self.finished.emit()  # finished callback
+        on_exit()  # exit callback
+
+    thread = threading.Thread(target=run_in_thread, args=args)
+    return thread
 
 
 class JobManager(QAbstractListModel):
@@ -78,6 +73,7 @@ class JobManager(QAbstractListModel):
 
     _jobs = {}
     _state = {}
+    _logs = {}
 
     status = Signal(str)
     result = Signal(str, object)
@@ -99,22 +95,26 @@ class JobManager(QAbstractListModel):
         n_jobs = len(self._jobs)
         self.status.emit(f"{n_jobs} jobs")
 
-    def execute_detach(self, arguments, parsers=None):
+    def execute_detach(self, arguments, logfile=None, job_id=None):
         """
         Execute a command by starting a new process.
         """
         def fwd_signal(target):
             return lambda *args: target(job_id, *args)
 
-        job_id = uuid.uuid4().hex
+        if not job_id:
+            job_id = uuid.uuid4().hex
 
-        p = jobprocess.call(arguments, fwd_signal(self.done), fwd_signal(self.handle_progress),
+        p = call(arguments, fwd_signal(self.done), fwd_signal(self.handle_progress),
                             fwd_signal(self.handle_log))
 
         # Set default status to waiting, 0 progress.
         self._state[job_id] = DEFAULT_STATE.copy()
-
+        if logfile:
+            self._state[job_id]['logfile'] = open(logfile, 'w')
+        
         self._jobs[job_id] = p
+
         print("Starting process", job_id, p)
         p.start()
 
@@ -126,8 +126,10 @@ class JobManager(QAbstractListModel):
 
     def handle_log(self, job_id, log):
         self._state[job_id]["log"] = log
+        if isinstance(self._state[job_id]['logfile'], TextIOWrapper):
+            self._state[job_id]['logfile'].write(log)
         self.result.emit(job_id, log)
-        self.layoutChanged.emit()
+        # self.layoutChanged.emit()
 
     def done(self, job_id, *arg):
         """
@@ -137,6 +139,9 @@ class JobManager(QAbstractListModel):
         """
         print('Finished process', job_id)
         self._state[job_id]["progress"] = 100
+        if isinstance(self._state[job_id]['logfile'], TextIOWrapper):
+            self._state[job_id]['logfile'].close()
+        
         del self._jobs[job_id]
         self.layoutChanged.emit()
 
@@ -166,7 +171,7 @@ class ProgressBarDelegate(QStyledItemDelegate):
         job_id, data = index.model().data(index, Qt.DisplayRole)
 
         progress = data["progress"]
-        log = data["log"]
+        # log = data["log"]
 
         if progress == 100:
             status = 'DONE'

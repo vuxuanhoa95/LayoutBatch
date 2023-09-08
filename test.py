@@ -1,11 +1,8 @@
-import tempfile
+from io import TextIOWrapper
 
-named_file = tempfile.TemporaryFile(
-    dir='./'
-)
- 
-print('File created in the cwd')
-print(named_file.name)
- 
-# Closing the file
-named_file.close()
+
+logfile = open('temp.log', 'w')
+
+print(logfile, type(logfile), isinstance(logfile, TextIOWrapper))
+
+logfile.close()
