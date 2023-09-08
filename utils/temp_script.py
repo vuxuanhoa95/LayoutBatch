@@ -1,10 +1,11 @@
 import os
-import time
+import uuid
 
 
 def copy_script_to_temp_dir(script_path, temp_dir, maya_file, module_path):
     basename = os.path.basename(script_path)
-    temp_file = os.path.join(temp_dir, f'batch.{time.strftime("%Y%m%d%H%M%S")}.{basename}').replace('\\', '/')
+    job_id = uuid.uuid4().hex
+    temp_file = os.path.join(temp_dir, f'batch.{job_id}.{basename}').replace('\\', '/')
     with open(script_path, mode='rt') as f:
         data = f.read()
     print(temp_file)
@@ -15,12 +16,13 @@ def copy_script_to_temp_dir(script_path, temp_dir, maya_file, module_path):
     return(temp_file)
 
 
-def convert_script_data(data, temp_file, maya_file, module_path):
+def convert_script_data(data, mayapy_path, temp_file, maya_file, module_path):
 
-    mapping = {'__file__': f'"{temp_file}"', 
-               '__MAYAFILE__': f'"{maya_file}"',
-               '__MODULE__': f'"{module_path}"',
-               }
+    mapping = {'__MAYAPY__': f'"{mayapy_path}"',
+        '__file__': f'"{temp_file}"', 
+        '__MAYAFILE__': f'"{maya_file}"',
+        '__MODULE__': f'"{module_path}"',
+    }
     
     for k, v in mapping.items():
         data = data.replace(k, v.replace('\\', '/'), 1)
@@ -41,12 +43,9 @@ def parse_script_to_arguments(script_path):
 
         if 1 <= breakpoints <2:
             arg = eval(line.strip())
-            print(arg, type(arg))
             args.append(arg)
 
         elif breakpoints >= 2:
             break
 
     return(args)
-
-copy_script_to_temp_dir(r"D:\Github\LayoutBatch\preset\test_export_fbx.py", r"D:\temp\test", r"D:\temp\test\Base_Rig_Latest.mb", r"D:\Github\LayoutBatch\module")

@@ -1,17 +1,18 @@
 import os
 import subprocess
+import tempfile
 import threading
 import uuid
 from io import TextIOWrapper
 import sys
 
-from PySide6.QtCore import QAbstractListModel, Signal, QProcess, QRect, Qt, QObject, QTimer
+from PySide6.QtCore import QAbstractListModel, Signal, Slot, QProcess, QRect, Qt, QObject, QTimer, QRunnable, QThreadPool
 from PySide6.QtGui import QColor, QBrush, QPen
 from PySide6.QtWidgets import QStyledItemDelegate
 
 
-TEMP = r'C:\Dev\temp'
-LOG_FILE = 'mayabatch.log'
+from utils import temp_script as ts, maya_launcher as ml
+
 
 STATUS_COLORS = {
     QProcess.NotRunning: "#b2df8a",
@@ -25,7 +26,12 @@ STATES = {
     QProcess.Running: "Running...",
 }
 
-DEFAULT_STATE = {"progress": 0, "log": '', 'logfile': None}
+DEFAULT_STATE = {"progress": 0, "log": '', 'logfile': None, 
+                 'script': 'task', 
+                 'file': 'empty'}
+
+
+MAYAPY = {k: str(ml.mayapy(k)) for k in ml.installed_maya_versions()}
 
 
 def call(*args):
@@ -44,10 +50,10 @@ def call(*args):
                 if progress >= 100:
                     progress = 1
                 on_progress(progress)  # progress callback
-                
+
                 line = proc.stdout.readline().decode()
                 if line:
-                    sys.stdout.write(line)
+                    # sys.stdout.write(line)
                     on_log(line)  # log callback
 
                 else:
@@ -63,6 +69,95 @@ def call(*args):
     return thread
 
 
+def simple_parser(line):
+    if not line:
+        return
+
+    return line.startswith('PROGRESS:')
+
+
+class WorkerSignals(QObject):
+    '''
+    Defines the signals available from a running worker thread.
+
+    Supported signals are:
+
+    finished
+        No data
+
+    error
+        tuple (exctype, value, traceback.format_exc() )
+
+    result
+        object data returned from processing, anything
+
+    progress
+        int indicating % progress
+
+    '''
+    finished = Signal()
+    error = Signal(tuple)
+    result = Signal(object)
+    log = Signal(object)
+    progress = Signal(int)
+
+
+class Worker(QRunnable):
+    '''
+    Worker thread
+
+    Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
+
+    :param callback: The function callback to run on this worker thread. Supplied args and
+                     kwargs will be passed through to the runner.
+    :type callback: function
+    :param args: Arguments to pass to the callback function
+    :param kwargs: Keywords to pass to the callback function
+
+    '''
+
+    def __init__(self, args, parser=None):
+        super().__init__()
+
+        self.args = args
+        self.parser = parser
+        self.signals = WorkerSignals()
+
+    @Slot()
+    def run(self):
+        '''
+        Initialise the runner function with passed args, kwargs.
+        '''
+        proc = subprocess.Popen(self.args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                creationflags=subprocess.CREATE_NEW_CONSOLE)
+
+        # proc = subprocess.Popen(self.args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+        def check_io():
+            progress = 0
+            while True:
+                line = proc.stdout.readline().decode()
+                if self.parser is None:
+                    progress += 1
+                else:
+                    if self.parser(line):
+                        progress += 1
+                if progress >= 100:
+                    progress = 1
+                self.signals.progress.emit(progress)  # progress callback
+
+                if line:
+                    self.signals.log.emit(line)  # log callback
+                else:
+                    break
+
+        while proc.poll() is None:
+            check_io()
+
+        proc.wait()
+        self.signals.finished.emit()  # exit callback
+
+
 class JobManager(QAbstractListModel):
     """
     Manager to handle active jobs and stdout, stderr
@@ -73,7 +168,9 @@ class JobManager(QAbstractListModel):
 
     _jobs = {}
     _state = {}
-    _logs = {}
+    _tempdir = tempfile.gettempdir()
+    _modulepath = None
+    _executor = None
 
     status = Signal(str)
     result = Signal(str, object)
@@ -87,9 +184,10 @@ class JobManager(QAbstractListModel):
         self.status_timer.timeout.connect(self.notify_status)
         self.status_timer.start()
 
-        # Internal signal, to trigger update of progress via parser.
-        self.worker = None
-        self.thread = None
+        self.threadpool = QThreadPool()
+        self.threadpool.setMaxThreadCount(4)
+
+        self.set_mayapy_version(ml.latest_maya_version())
 
     def notify_status(self):
         n_jobs = len(self._jobs)
@@ -105,7 +203,7 @@ class JobManager(QAbstractListModel):
         if not job_id:
             job_id = uuid.uuid4().hex
 
-        p = call(arguments, fwd_signal(self.done), fwd_signal(self.handle_progress),
+        p = call(arguments, fwd_signal(self.handle_finish), fwd_signal(self.handle_progress),
                             fwd_signal(self.handle_log))
 
         # Set default status to waiting, 0 progress.
@@ -120,18 +218,86 @@ class JobManager(QAbstractListModel):
 
         self.layoutChanged.emit()
 
+    def execute_detach2(self, arguments, logfile=None, job_id=None):
+        """
+        Execute a command by starting a new process.
+        """
+
+        if not job_id:
+            job_id = uuid.uuid4().hex
+
+        # Pass the function to execute
+        worker = Worker(arguments) # Any other args, kwargs are passed to the run function
+        worker.signals.log.connect(lambda x: self.handle_log(job_id, x))
+        worker.signals.progress.connect(lambda x: self.handle_progress(job_id, x))
+        worker.signals.finished.connect(lambda: self.handle_finish(job_id))
+
+        # Set default status to waiting, 0 progress.
+        self._state[job_id] = DEFAULT_STATE.copy()
+        if logfile:
+            self._state[job_id]['logfile'] = open(logfile, 'w')
+        
+        self._jobs[job_id] = worker
+
+        print("Starting process", job_id)
+        self.threadpool.start(worker)
+
+        self.layoutChanged.emit()
+
+    def set_mayapy_version(self, version):
+        self._executor = MAYAPY[version].replace('\\', '/')
+        print('Set executor', self._executor)
+    
+    def execute_mayapy_script(self, script_path, maya_file, logfile=True):
+        job_id = uuid.uuid4().hex
+        
+        basename = os.path.basename(script_path)
+        temp_script = os.path.join(self._tempdir, f'batch.{job_id}.{basename}').replace('\\', '/')
+        if logfile:
+            logfile = f'{temp_script}.log'
+        with open(script_path, mode='rt') as f:
+            data = f.read()
+        data = ts.convert_script_data(data, self._executor, temp_script, maya_file, self._modulepath)
+        with open(temp_script, mode='wt') as f:
+            f.write(data)
+
+        arguments = ts.parse_script_to_arguments(temp_script)
+
+        # Pass the function to execute
+        worker = Worker(arguments) # Any other args, kwargs are passed to the run function
+        worker.signals.log.connect(lambda x: self.handle_log(job_id, x))
+        worker.signals.progress.connect(lambda x: self.handle_progress(job_id, x))
+        worker.signals.finished.connect(lambda: self.handle_finish(job_id))
+
+        # Set default status to waiting, 0 progress.
+        self._state[job_id] = DEFAULT_STATE.copy()
+        self._state[job_id]['script'] = basename
+        self._state[job_id]['file'] = os.path.basename(maya_file)
+
+        if logfile:
+            self._state[job_id]['logfile'] = open(logfile, 'w')
+        
+        self._jobs[job_id] = worker
+
+        print("Starting process", job_id, worker)
+        self.threadpool.start(worker)
+
+        self.layoutChanged.emit()
+
     def handle_progress(self, job_id, progress):
         self._state[job_id]["progress"] = progress
         self.layoutChanged.emit()
 
     def handle_log(self, job_id, log):
-        self._state[job_id]["log"] = log
+        if log.startswith('PROGRESS:'):
+            self._state[job_id]["log"] = log.partition(':')[2]
+
         if isinstance(self._state[job_id]['logfile'], TextIOWrapper):
             self._state[job_id]['logfile'].write(log)
         self.result.emit(job_id, log)
         # self.layoutChanged.emit()
 
-    def done(self, job_id, *arg):
+    def handle_finish(self, job_id, *arg):
         """
         Task/worker complete. Remove it from the active workers
         dictionary. We leave it in worker_state, as this is used to
@@ -171,14 +337,17 @@ class ProgressBarDelegate(QStyledItemDelegate):
         job_id, data = index.model().data(index, Qt.DisplayRole)
 
         progress = data["progress"]
-        # log = data["log"]
-
+        
         if progress == 100:
             status = 'DONE'
         elif progress == 0:
             status = 'Starting...'
         else:
             status = 'Running...'
+            status += data["log"]
+
+        script = data['script']
+        file = data['file']
 
         if progress > 0:
             color = QColor(STATUS_COLORS[QProcess.Running])
@@ -198,4 +367,4 @@ class ProgressBarDelegate(QStyledItemDelegate):
 
         pen = QPen()
         pen.setColor(Qt.black)
-        painter.drawText(option.rect, Qt.AlignLeft, f'{job_id} | {status}')
+        painter.drawText(option.rect, Qt.AlignLeft, f'{file} | {script} | {status}')

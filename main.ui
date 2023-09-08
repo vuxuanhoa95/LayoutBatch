@@ -25,7 +25,14 @@
         <enum>Qt::Horizontal</enum>
        </property>
        <widget class="QListWidget" name="lw_tasks"/>
-       <widget class="QListWidget" name="lw_files"/>
+       <widget class="QListWidget" name="lw_files">
+        <property name="selectionMode">
+         <enum>QAbstractItemView::ExtendedSelection</enum>
+        </property>
+        <property name="selectionRectVisible">
+         <bool>true</bool>
+        </property>
+       </widget>
       </widget>
       <widget class="QSplitter" name="splitter_2">
        <property name="orientation">
@@ -96,8 +103,8 @@ background-color: rgb(0, 0, 0);</string>
     <property name="title">
      <string>Maya</string>
     </property>
-    <addaction name="actionMayabatch"/>
     <addaction name="actionMayapy"/>
+    <addaction name="actionMayabatch"/>
     <addaction name="actionRender"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
@@ -194,7 +201,10 @@ background-color: rgb(0, 0, 0);</string>
     <bool>true</bool>
    </property>
    <property name="checked">
-    <bool>true</bool>
+    <bool>false</bool>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
    </property>
    <property name="text">
     <string>Mayabatch</string>
@@ -204,6 +214,9 @@ background-color: rgb(0, 0, 0);</string>
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Mayapy</string>
    </property>
@@ -211,6 +224,9 @@ background-color: rgb(0, 0, 0);</string>
   <action name="actionRender">
    <property name="checkable">
     <bool>true</bool>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
    </property>
    <property name="text">
     <string>Render</string>

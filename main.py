@@ -13,7 +13,13 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QFileDialog, QMenu, QL
 from utils import jobmodel, temp_script as ts
 
 
-file_handler = logging.FileHandler(filename='tmp.log')
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
+
+
+file_handler = logging.FileHandler(filename=resource_path('tmp.log'))
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
 handlers = [file_handler, stdout_handler]
 
@@ -26,42 +32,11 @@ logging.basicConfig(
 logger = logging.getLogger('LOGGER_NAME')
 
 
-def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base_path, relative_path)
-
-
-MAIN_UI = resource_path('utils') + '\\main.ui'
-PRESET_PATH = resource_path('preset') + '\\'
-
-MAYA_LOCATION = r'C:\Program Files\Autodesk\Maya2024'
-MAYA_BATCH = os.path.join(MAYA_LOCATION, 'bin', 'mayabatch.exe')
-MAYA_RENDER = os.path.join(MAYA_LOCATION, 'bin', 'render.exe')
-MAYA_PY = os.path.join(MAYA_LOCATION, 'bin', 'mayapy.exe')
-
-TEMP = r'C:\Dev\temp'
 # MAYA_SCRIPT = os.path.join(TEMP, 'test.py').replace("\\", "/")
 # # COMMAND = "python(\\\"execfile(\\'{}\\')\\\")".format(
 # #         MAYA_SCRIPT.replace("\\", "/")
 # #     )
 # COMMAND = f'python("exec(open(\'{MAYA_SCRIPT}\').read())")'
-LOG_FILE = 'test.log'
-
-PRESET_TASKS = {
-    'Help': {
-        'args': ['help'],
-        'kwargs': {},
-    },
-    'Archive': {
-        'args': ['noAutoloadPlugins'],
-        'kwargs': {'archive': '', 'log': LOG_FILE},
-    },
-    'Playblast': {
-        'args': [],
-        'kwargs': {},
-    },
-}
 
 
 def is_valid_path(string: str):
@@ -69,39 +44,6 @@ def is_valid_path(string: str):
     if string and isinstance(string, str) and pattern.match(string):
         return True
     return False
-
-
-def gen_args(preset: dict = None, *args, **kwargs):
-    arguments = []
-    if preset:
-        args = list(args)
-        args.extend(preset.get('args', []))
-
-        kwargs.update(preset.get('kwargs', {}))
-
-    for k, v in kwargs.items():
-        arguments.extend([f'-{k}', v])
-
-    for a in args:
-        if not a.startswith('-'):
-            a = f'-{a}'
-        arguments.append(a)
-
-    return arguments
-
-
-def gen_presets(path=PRESET_PATH):
-    scripts = []
-    for f in os.listdir(os.path.dirname(__file__)):
-        if f == '__init__.py':
-            continue
-        scripts.append(f)
-    return scripts
-
-
-def set_log_for_file(file):
-    basename = os.path.basename(file)
-    return os.path.join(TEMP, f'{basename}.log')
 
 
 class MayaBatch(object):
@@ -249,23 +191,6 @@ class MayaPy(object):
         self.args.append(path)
 
 
-class TaskItem(QListWidgetItem):
-
-    def __init__(self, name, arguments):
-        super().__init__(name)
-        self.log = None
-
-        if isinstance(arguments, dict):
-            if 'args' in arguments or 'kwargs' in arguments:
-                args = arguments['args']
-                kwargs = arguments['kwargs']
-                self.batch = MayaBatch(*args, **kwargs)
-            else:
-                self.batch = MayaBatch(**arguments)
-        else:
-            self.batch = arguments
-
-
 class TaskItem2(QListWidgetItem):
 
     def __init__(self, name, path=None):
@@ -290,11 +215,13 @@ class FileItem(QListWidgetItem):
 
 
 class MainWindow(QMainWindow):
+
     def __init__(self):
         super().__init__()
         ui = QUiLoader()
-        self.ui = ui.load(MAIN_UI)
+        self.ui = ui.load(resource_path("main.ui"))
         self.job = jobmodel.JobManager()
+        self.job._modulepath = resource_path("module/maya_kit.py")
 
         self.build_ui()
         self.connect_event()
@@ -302,7 +229,11 @@ class MainWindow(QMainWindow):
 
         self.ui.actionMayapy.setChecked(True)
         self.add_presets()
-        self.add_file(r"D:\temp\test\Base_Rig_Latest.mb")
+        self.add_file(r"D:\temp\test\Base_Rig_Latest_0.mb")
+        self.add_file(r"D:\temp\test\Base_Rig_Latest_1.mb")
+        self.add_file(r"D:\temp\test\Base_Rig_Latest_2.mb")
+        self.add_file(r"D:\temp\test\Base_Rig_Latest_3.mb")
+        self.add_file(r"D:\temp\test\Base_Rig_Latest_4.mb")
 
 
     def build_ui(self):
@@ -313,26 +244,24 @@ class MainWindow(QMainWindow):
 
         self.ui.menuMaya.addSeparator()
 
-        from utils import maya_launcher as ml
         ver_group = QActionGroup(self)
         ver_group.setExclusive(True)
-        maya_versions = ml.installed_maya_versions()
+        maya_versions = jobmodel.MAYAPY.keys()
         for v in maya_versions:
             a = QAction(f'Maya {v}', self)
             a.setCheckable(True)
             self.ui.menuMaya.addAction(a)
             ver_group.addAction(a)
+            a.triggered.connect(partial(self.job.set_mayapy_version, version=v))
             a.setChecked(True)
-            a.triggered.connect(partial(MayaBatch.set_executor, version=v))
         
         exe_group = QActionGroup(self)
         exe_group.setExclusive(True)
         exe_group.addAction(self.ui.actionMayabatch)
-        self.ui.actionMayabatch.triggered.connect(partial(MayaBatch.set_executor, executor='mayabatch'))
         exe_group.addAction(self.ui.actionMayapy)
-        self.ui.actionMayapy.triggered.connect(partial(MayaBatch.set_executor, executor='mayapy'))
         exe_group.addAction(self.ui.actionRender)
-        self.ui.actionRender.triggered.connect(partial(MayaBatch.set_executor, executor='render'))
+
+        self.ui.splitter_2.setSizes([1,0])
 
         self.ui.pte_log.setReadOnly(True)
 
@@ -381,39 +310,19 @@ class MainWindow(QMainWindow):
         del menu
 
     def test(self):
-        self.job.execute_detach(['python', 'test.py'])
+        pass
 
     def quick_run(self, flag):
-        batch = MayaBatch(flag)
-        self.job.execute_detach(batch.args)
+        pass
 
     def run_command(self):
         t = self.ui.lw_tasks.currentItem()
-        if isinstance(t, TaskItem):
-            task = t.text()
-            batch = t.batch
-            if task == 'Help':
-                batch.help()
-                self.job.execute_detach(batch.args)
 
-            else:
-                for i in range(self.ui.lw_files.count()):
-                    f = self.ui.lw_files.item(i)
-                    if task == 'Archive':
-                        batch.set_archive(f.path)
-                    else:
-                        batch.set_file(f.path)
-                    # args.insert(0, MAYA_BATCH)
-                    print(batch.args)
-                    self.job.execute_detach(batch.args)
-        
-        elif isinstance(t, TaskItem2):
+        if isinstance(t, TaskItem2):
             for i in range(self.ui.lw_files.count()):
                 f = self.ui.lw_files.item(i).path
-                temp_script, args = t.convert_script(f)
-                logfile = f'{temp_script}.log'
-                print(args, logfile)
-                self.job.execute_detach(args, logfile=logfile)
+                self.job.execute_mayapy_script(t.path, f)
+
 
     # end::startJob[]
     def display_result(self, job_id, data):
@@ -446,24 +355,12 @@ class MainWindow(QMainWindow):
             print('Added', basename)
 
     def add_presets(self, presets: dict = None):
-        if not presets:
-            presets = PRESET_TASKS
-
-        lw = self.ui.lw_tasks
-        for k, v in presets.items():
-            item = TaskItem(k, v)
-            lw.addItem(item)
-            a = item.batch
-
-        for f in os.listdir(PRESET_PATH):
-            if f == '__init__.py':
+        preset_path = resource_path('preset')
+        for f in os.listdir(preset_path):
+            if f == '__init__.py' or not f.endswith('.py'):
                 continue
-            # a = MayaBatch(script=os.path.join(PRESET_PATH, f))
-            # a = MayaPy()
-            # a.set_script(f)
-            item = TaskItem2(f, path=os.path.join(PRESET_PATH, f))
-            lw.addItem(item)
-            # print(a.args)
+            item = TaskItem2(f, path=os.path.join(preset_path, f))
+            self.ui.lw_tasks.addItem(item)
 
 
 if __name__ == "__main__":

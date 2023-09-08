@@ -1,5 +1,5 @@
 '''
-"C:/Program Files/Autodesk/Maya2024/bin/mayapy.exe"
+__MAYAPY__
 __file__
 '''
 
@@ -23,7 +23,8 @@ cmds.loadPlugin("gameFbxExporter.mll")
 maya_file = __MAYAFILE__
 cmds.file(maya_file, o=True, f=True, executeScriptNodes=False)
 
-export_dir = os.path.join(os.path.dirname(maya_file), "output")  # cmds.fileDialog2(dialogStyle=2, fileMode=2)
+maya_file_name, _ = os.path.splitext(os.path.basename(maya_file))
+export_dir = os.path.join(os.path.dirname(maya_file), f"output.{maya_file_name}")  # cmds.fileDialog2(dialogStyle=2, fileMode=2)
 if not os.path.isdir(export_dir):
     os.mkdir(export_dir)
 
@@ -42,13 +43,15 @@ for t in sorted(mesh_transform):
             export_path = os.path.join(export_dir, export_name)
             to_export = default_export.copy()
             to_export.append(t)
+            print('PROGRESS:Exporting', export_path)
             mk.export_fbx(export_path, to_export)
             exported.append(export_path)
             print('Exported', export_path)
-        if len(exported) >=5:
-            break
+        # if len(exported) >=5:
+        #     break
 print('Finished exporting. Total file: ', len(exported))
 for f in sorted(exported):
+    print('PROGRESS:Cleaning', f)
     mk.cleanup_fbx(f)
     print('cleaned', f)
 

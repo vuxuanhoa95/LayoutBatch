@@ -1,8 +1,4 @@
-from io import TextIOWrapper
+import tempfile
 
 
-logfile = open('temp.log', 'w')
-
-print(logfile, type(logfile), isinstance(logfile, TextIOWrapper))
-
-logfile.close()
+print(tempfile.gettempdir())
