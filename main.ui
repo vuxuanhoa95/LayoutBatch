@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Batch Executor</string>
+   <string>Batch Export FBX</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -24,13 +24,20 @@
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>
-       <widget class="QListWidget" name="lw_tasks"/>
        <widget class="QListWidget" name="lw_files">
         <property name="selectionMode">
          <enum>QAbstractItemView::ExtendedSelection</enum>
         </property>
         <property name="selectionRectVisible">
          <bool>true</bool>
+        </property>
+       </widget>
+       <widget class="QListWidget" name="lw_tasks">
+        <property name="selectionMode">
+         <enum>QAbstractItemView::SingleSelection</enum>
+        </property>
+        <property name="selectionRectVisible">
+         <bool>false</bool>
         </property>
        </widget>
       </widget>
@@ -56,24 +63,17 @@ background-color: rgb(0, 0, 0);</string>
     </item>
     <item>
      <layout class="QGridLayout" name="gridLayout">
-      <item row="1" column="0">
-       <widget class="QPushButton" name="b_clear">
-        <property name="text">
-         <string>Clear All</string>
-        </property>
-       </widget>
-      </item>
       <item row="0" column="0">
        <widget class="QPushButton" name="b_execute">
         <property name="text">
-         <string>Run Command</string>
+         <string>Run Tasks</string>
         </property>
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="QPushButton" name="b_test">
+       <widget class="QPushButton" name="b_clear">
         <property name="text">
-         <string>Test</string>
+         <string>Clear All</string>
         </property>
        </widget>
       </item>
@@ -97,11 +97,13 @@ background-color: rgb(0, 0, 0);</string>
     <property name="title">
      <string>File</string>
     </property>
+    <addaction name="actionAddFiles"/>
+    <addaction name="separator"/>
     <addaction name="actionExit_2"/>
    </widget>
    <widget class="QMenu" name="menuMaya">
     <property name="title">
-     <string>Maya</string>
+     <string>Edit</string>
     </property>
     <addaction name="actionMayapy"/>
     <addaction name="actionMayabatch"/>
@@ -129,63 +131,6 @@ background-color: rgb(0, 0, 0);</string>
     <string>Exit</string>
    </property>
   </action>
-  <action name="actionMaya2018">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Maya2018</string>
-   </property>
-  </action>
-  <action name="actionMaya2020">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Maya2020</string>
-   </property>
-  </action>
-  <action name="actionMaya2023">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="checked">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Maya2023</string>
-   </property>
-  </action>
-  <action name="action2022">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="checked">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>2022</string>
-   </property>
-  </action>
-  <action name="action2024">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>2024</string>
-   </property>
-  </action>
-  <action name="action2023">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="checked">
-    <bool>false</bool>
-   </property>
-   <property name="text">
-    <string>2023</string>
-   </property>
-  </action>
   <action name="actionHelp">
    <property name="text">
     <string>Help</string>
@@ -193,7 +138,7 @@ background-color: rgb(0, 0, 0);</string>
   </action>
   <action name="actionVersion">
    <property name="text">
-    <string>Version</string>
+    <string>About</string>
    </property>
   </action>
   <action name="actionMayabatch">
@@ -230,6 +175,11 @@ background-color: rgb(0, 0, 0);</string>
    </property>
    <property name="text">
     <string>Render</string>
+   </property>
+  </action>
+  <action name="actionAddFiles">
+   <property name="text">
+    <string>Add files</string>
    </property>
   </action>
  </widget>

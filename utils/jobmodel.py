@@ -122,16 +122,14 @@ class Worker(QRunnable):
         self.args = args
         self.parser = parser
         self.signals = WorkerSignals()
+        self.stdout = subprocess.STDOUT
 
     @Slot()
     def run(self):
-        '''
-        Initialise the runner function with passed args, kwargs.
-        '''
-        proc = subprocess.Popen(self.args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                creationflags=subprocess.CREATE_NEW_CONSOLE)
+        # proc = subprocess.Popen(self.args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        #                         creationflags=subprocess.CREATE_NEW_CONSOLE)
 
-        # proc = subprocess.Popen(self.args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        proc = subprocess.Popen(self.args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         def check_io():
             progress = 0
@@ -171,10 +169,12 @@ class JobManager(QAbstractListModel):
     _tempdir = tempfile.gettempdir()
     _modulepath = None
     _executor = None
+    _maxinstance = 2
 
     status = Signal(str)
     result = Signal(str, object)
     progress = Signal(str, int)
+    finished = Signal(object)
 
     def __init__(self):
         super().__init__()
@@ -185,38 +185,18 @@ class JobManager(QAbstractListModel):
         self.status_timer.start()
 
         self.threadpool = QThreadPool()
-        self.threadpool.setMaxThreadCount(4)
+        self.set_max_instance(self._maxinstance)
 
         self.set_mayapy_version(ml.latest_maya_version())
+
+    def set_max_instance(self, n: int):
+        self._maxinstance = n
+        self.threadpool.setMaxThreadCount(self._maxinstance)
+        print('Set max thread', n)
 
     def notify_status(self):
         n_jobs = len(self._jobs)
         self.status.emit(f"{n_jobs} jobs")
-
-    def execute_detach(self, arguments, logfile=None, job_id=None):
-        """
-        Execute a command by starting a new process.
-        """
-        def fwd_signal(target):
-            return lambda *args: target(job_id, *args)
-
-        if not job_id:
-            job_id = uuid.uuid4().hex
-
-        p = call(arguments, fwd_signal(self.handle_finish), fwd_signal(self.handle_progress),
-                            fwd_signal(self.handle_log))
-
-        # Set default status to waiting, 0 progress.
-        self._state[job_id] = DEFAULT_STATE.copy()
-        if logfile:
-            self._state[job_id]['logfile'] = open(logfile, 'w')
-        
-        self._jobs[job_id] = p
-
-        print("Starting process", job_id, p)
-        p.start()
-
-        self.layoutChanged.emit()
 
     def execute_detach2(self, arguments, logfile=None, job_id=None):
         """
@@ -267,7 +247,7 @@ class JobManager(QAbstractListModel):
         worker = Worker(arguments) # Any other args, kwargs are passed to the run function
         worker.signals.log.connect(lambda x: self.handle_log(job_id, x))
         worker.signals.progress.connect(lambda x: self.handle_progress(job_id, x))
-        worker.signals.finished.connect(lambda: self.handle_finish(job_id))
+        worker.signals.finished.connect(lambda: self.handle_finish(job_id, out_log=logfile))
 
         # Set default status to waiting, 0 progress.
         self._state[job_id] = DEFAULT_STATE.copy()
@@ -297,7 +277,7 @@ class JobManager(QAbstractListModel):
         self.result.emit(job_id, log)
         # self.layoutChanged.emit()
 
-    def handle_finish(self, job_id, *arg):
+    def handle_finish(self, job_id, out_log=None):
         """
         Task/worker complete. Remove it from the active workers
         dictionary. We leave it in worker_state, as this is used to
@@ -308,7 +288,12 @@ class JobManager(QAbstractListModel):
         if isinstance(self._state[job_id]['logfile'], TextIOWrapper):
             self._state[job_id]['logfile'].close()
         
+        try:
+            self.threadpool.tryTake(self._jobs[job_id])
+        except:
+            pass
         del self._jobs[job_id]
+        self.finished.emit(out_log)
         self.layoutChanged.emit()
 
     def cleanup(self):
@@ -316,7 +301,16 @@ class JobManager(QAbstractListModel):
         Remove any complete/failed workers from worker_state.
         """
         for job_id, s in list(self._state.items()):
-            del self._state[job_id]
+
+            if self._jobs.get(job_id):
+                if self.threadpool.tryTake(self._jobs[job_id]):
+                    del self._state[job_id]
+                    del self._jobs[job_id]
+
+            if self._state.get(job_id):
+                if self._state[job_id]['progress'] == 100:
+                    del self._state[job_id]
+
         self.layoutChanged.emit()
 
     # Model interface

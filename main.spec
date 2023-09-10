@@ -5,7 +5,6 @@ block_cipher = None
 add_files = [
 ('preset', 'preset'),
 ('module', 'module'),
-('main.ui', '.'),
 ]
 
 a = Analysis(
@@ -30,7 +29,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='main',
+    name='BatchExportFBX',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -50,5 +49,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='main',
+    name='BatchExportFBX',
 )

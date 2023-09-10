@@ -1,7 +1,0 @@
-{
-    "args": 
-        [
-            "C:/Program Files/Autodesk/Maya2024/bin/mayapy.exe", 
-            "D:/Github/LayoutBatch/preset/test_export_fbx.py"
-        ]
-}

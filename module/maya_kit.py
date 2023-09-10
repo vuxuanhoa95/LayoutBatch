@@ -1,11 +1,8 @@
-import logging
+import os
+import re
+
 import maya.cmds as cmds
 import maya.mel as mel
-import maya.OpenMaya as api
-import maya.OpenMayaUI as OpenMayaUI
-
-
-logger = logging.getLogger(__name__)
 
 
 def export_fbx(output, nodes=None, start_frame=None, end_frame=None, anim=False):
@@ -109,3 +106,102 @@ def get_transform_by_shape_type(shape='mesh', fullPath=True):
                 shape_transform.append(t)
     
     return shape_transform
+
+
+def get_hierachy_by_type(root, shape='joint', fullPath=True, include_root=True):
+    root = cmds.ls(root, long=fullPath)
+    if not root:
+        return []
+
+    root = root[0]
+    hierachy = []
+    if include_root:
+        hierachy.append(root)
+    hierachy.extend(cmds.listRelatives(root, ad=True, type=shape, fullPath=fullPath)) 
+    return hierachy
+
+
+def maya_export_skel(maya_file=None, main_skel=False, cleanup=False):
+    cmds.loadPlugin("gameFbxExporter.mll")
+    if maya_file is None:  # run on current file
+        maya_file = cmds.file(q=True, sn=True)
+        maya_file_name, _ = os.path.splitext(os.path.basename(maya_file))
+        export_dir = cmds.fileDialog2(dialogStyle=2, fileMode=2)
+        if not export_dir:
+            return
+        export_dir = export_dir[0]
+    
+    else:
+        cmds.file(maya_file, o=True, f=True)
+        maya_file_name, _ = os.path.splitext(os.path.basename(maya_file))
+        export_dir = os.path.join(os.path.dirname(maya_file), "skel.{}".format(maya_file_name))
+
+    if not os.path.isdir(export_dir):
+        os.mkdir(export_dir)
+
+    look_in_group = '|Group|Geometry|geo|Skin'  # TODO: check namespace
+    pattern = r'(?P<CH>\w+)_(?P<SkinVersion>\w+)_(?P<Rarity>\w+)_(?P<SkinName>\w+)_(?P<PartName>\w+)'
+    default_export = ["DeformationSystem"]  # TODO: check namespace
+    exported = []
+
+    # export main skeleton
+    if main_skel:
+        main_skeleton = os.path.join(export_dir, '{}.fbx'.format(maya_file_name))
+        export_fbx(main_skeleton, default_export)
+        exported.append(main_skeleton)
+
+    # export all skin
+    mesh_transform = get_transform_by_shape_type()
+    for t in sorted(mesh_transform):
+        if t.startswith(look_in_group):
+            input_string = t.split('|')[-1]
+            match = re.match(pattern, input_string)
+            if match:
+                match = match.groupdict()
+                export_name = '{}{}{}.fbx'.format(match["PartName"], match["Rarity"], match["SkinName"])
+                export_path = os.path.join(export_dir, export_name)
+                to_export = default_export.copy()
+                to_export.append(t)
+                print('PROGRESS:Exporting', export_path)
+                export_fbx(export_path, to_export)
+                exported.append(export_path)
+                print('Exported', export_path)
+            # if len(exported) >= 5:
+            #     break
+    print('Finished exporting. Total file: ', len(exported))
+
+    # clean up fbx
+    if cleanup:
+        for f in sorted(exported):
+            print('PROGRESS:Cleaning', f)
+            cleanup_fbx(f)
+            print('cleaned', f)
+
+def maya_export_anim(maya_file=None, cleanup=False):
+    cmds.loadPlugin("gameFbxExporter.mll")
+    if maya_file is None:  # run on current file
+        maya_file = cmds.file(q=True, sn=True)
+        maya_file_name, _ = os.path.splitext(os.path.basename(maya_file))
+        export_dir = cmds.fileDialog2(dialogStyle=2, fileMode=2)
+        if not export_dir:
+            return
+        export_dir = export_dir[0]
+    
+    else:
+        cmds.file(maya_file, o=True, f=True)
+        maya_file_name, _ = os.path.splitext(os.path.basename(maya_file))
+        export_dir = os.path.join(os.path.dirname(maya_file), "anim.{}".format(maya_file_name))
+
+    if not os.path.isdir(export_dir):
+        os.mkdir(export_dir)
+
+    export_name = maya_file_name.rpartition('_')[0]
+    export_path = os.path.join(export_dir, '{}.fbx'.format(export_name))
+
+    default_export = get_hierachy_by_type('Root_M')  # TODO: check namespace
+
+    export_fbx(export_path, default_export, anim=True)
+
+    # clean up fbx
+    if cleanup:
+        cleanup_fbx(export_path)
