@@ -2,6 +2,7 @@ import os
 import subprocess
 import tempfile
 import threading
+from typing import Optional
 import uuid
 from io import TextIOWrapper
 import sys
@@ -91,6 +92,9 @@ class WorkerSignals(QObject):
     result
         object data returned from processing, anything
 
+    log
+        log data returned from processing, anything
+
     progress
         int indicating % progress
 
@@ -98,7 +102,7 @@ class WorkerSignals(QObject):
     finished = Signal()
     error = Signal(tuple)
     result = Signal(object)
-    log = Signal(object)
+    log = Signal(str)
     progress = Signal(int)
 
 
@@ -116,44 +120,168 @@ class Worker(QRunnable):
 
     '''
 
-    def __init__(self, args, parser=None):
+    def __init__(self, args, logfile=None, parser=None):
         super().__init__()
 
         self.args = args
         self.parser = parser
         self.signals = WorkerSignals()
-        self.stdout = subprocess.STDOUT
+        self.stdout = subprocess.PIPE
+        self.logfile = logfile
 
     @Slot()
     def run(self):
-        # proc = subprocess.Popen(self.args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        #                         creationflags=subprocess.CREATE_NEW_CONSOLE)
+        proc = subprocess.Popen(self.args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                creationflags=subprocess.CREATE_NEW_CONSOLE)
 
-        proc = subprocess.Popen(self.args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        # proc = subprocess.Popen(self.args, stdout=self.stdout, stderr=subprocess.STDOUT)
 
-        def check_io():
+        def check_io(logfile=None):
             progress = 0
+            
             while True:
-                line = proc.stdout.readline().decode()
+                bline = proc.stdout.readline()
+                line = bline.decode()
                 if self.parser is None:
                     progress += 1
                 else:
                     if self.parser(line):
                         progress += 1
+
                 if progress >= 100:
                     progress = 1
                 self.signals.progress.emit(progress)  # progress callback
 
                 if line:
                     self.signals.log.emit(line)  # log callback
+                    logfile.write(bline)
                 else:
+                    progress = 100
                     break
-
-        while proc.poll() is None:
-            check_io()
+        if self.logfile:
+            with open(self.logfile, 'ab') as logfile:
+                while proc.poll() is None:
+                    check_io(logfile)
+        else:
+            while proc.poll() is None:
+                check_io(logfile)
 
         proc.wait()
         self.signals.finished.emit()  # exit callback
+
+
+class Worker2(QRunnable):
+
+    def __init__(self, args, logfile=None, parser=None):
+        super().__init__()
+
+        self.args = args
+        self.parser = parser
+        self.signals = WorkerSignals()
+        self.logfile = logfile
+        self.logfileIO = None
+        self.progress = 0
+
+        self.process = None
+        
+    @Slot()
+    def run(self):
+        self.process = QProcess()  # Keep a reference to the QProcess (e.g. on self) while it's running.
+        self.process.readyReadStandardOutput.connect(self.handle_stdout)
+        self.process.readyReadStandardError.connect(self.handle_stderr)
+        self.process.stateChanged.connect(self.handle_state)
+        self.process.started.connect(self.process_started)
+        self.process.finished.connect(self.process_finished)  # Clean up once complete.
+        print(self.args[0], self.args[1:])
+        self.process.start(self.args[0], self.args[1:])
+
+    def handle_stderr(self):
+        data = self.process.readAllStandardError()
+        stderr = bytes(data).decode("utf8")
+        if isinstance(self.logfileIO, TextIOWrapper):
+            self.logfileIO.write(stderr)
+
+    def handle_stdout(self):
+        data = self.process.readAllStandardOutput()
+        stdout = bytes(data).decode("utf8")
+        self.signals.log.emit(stdout)
+        if isinstance(self.logfileIO, TextIOWrapper):
+            self.logfileIO.write(stdout)
+
+        self.progress += 1
+        if self.progress >= 100:
+            self.progress = 1
+        self.signals.progress.emit(self.progress)
+
+    def handle_state(self, state):
+        states = {
+            QProcess.NotRunning: 'Not running',
+            QProcess.Starting: 'Starting',
+            QProcess.Running: 'Running',
+        }
+        state_name = states[state]
+
+    def process_started(self):
+        if self.logfile:
+            self.logfileIO = open(self.logfile, 'w')
+
+    def process_finished(self):
+        if isinstance(self.logfileIO, TextIOWrapper):
+            self.logfileIO.close()
+        self.progress = 100
+        self.signals.finished.emit()
+        self.process = None
+
+
+class Worker3(QProcess):
+
+    on_log = Signal(str)
+    on_progress = Signal(int)
+
+    def __init__(self, parent: QObject | None) -> None:
+        super().__init__(parent)
+
+        self.setProcessChannelMode(QProcess.MergedChannels)
+        # self.readyRead.connect(self.handle_std)
+        self.readyReadStandardOutput.connect(self.handle_stdout)
+        self.readyReadStandardError.connect(self.handle_stderr)
+        self.stateChanged.connect(self.handle_state)
+        self.progress = 0
+
+    def handle_state(self):
+        pass
+
+    def handle_std(self):
+        data = self.readAll()
+        stdout = bytes(data).decode("utf8")
+        self.on_log.emit(stdout)
+        self.handle_progress(stdout)
+
+    def handle_stderr(self):
+        data = self.readAllStandardError()
+        stderr = bytes(data).decode("utf8")
+        self.on_log.emit(stderr)
+        # if isinstance(self.logfileIO, TextIOWrapper):
+        #     self.logfileIO.write(stderr)
+
+    def handle_stdout(self):
+        data = self.readAllStandardOutput()
+        stdout = bytes(data).decode("utf8")
+        self.on_log.emit(stdout)
+        # if isinstance(self.logfileIO, TextIOWrapper):
+        #     self.logfileIO.write(stdout)
+        # self.handle_progress(stdout)
+        self.progress += 1
+        if self.progress >= 100:
+            self.progress = 1
+        self.on_progress.emit(self.progress)
+
+    def handle_progress(self, data):
+        if simple_parser(data):
+            self.progress += 1
+            if self.progress >= 100:
+                self.progress = 1
+            self.on_progress.emit(self.progress)
 
 
 class JobManager(QAbstractListModel):
@@ -165,6 +293,7 @@ class JobManager(QAbstractListModel):
     """
 
     _jobs = {}
+    _running = []
     _state = {}
     _tempdir = tempfile.gettempdir()
     _modulepath = None
@@ -184,9 +313,9 @@ class JobManager(QAbstractListModel):
         self.status_timer.timeout.connect(self.notify_status)
         self.status_timer.start()
 
-        self.threadpool = QThreadPool()
-        self.set_max_instance(self._maxinstance)
+        self.threadpool = QThreadPool.globalInstance()
 
+        self.set_max_instance(self._maxinstance)
         self.set_mayapy_version(ml.latest_maya_version())
 
     def set_max_instance(self, n: int):
@@ -194,9 +323,74 @@ class JobManager(QAbstractListModel):
         self.threadpool.setMaxThreadCount(self._maxinstance)
         print('Set max thread', n)
 
+    def set_mayapy_version(self, version):
+        self._executor = MAYAPY[version].replace('\\', '/')
+        print('Set executor', self._executor)
+
     def notify_status(self):
         n_jobs = len(self._jobs)
         self.status.emit(f"{n_jobs} jobs")
+
+    def add_task(self, command):
+        """
+        :type command: str
+        :param command: A console command with arguments
+        Adds a task to the pool for later execution
+        """
+        self.tasks_pool.append(command)
+
+    def queue_process(self, script_path, maya_file, logfile=True):
+        """
+        :param task: Is a string used to start a process
+        """
+        job_id = uuid.uuid4().hex
+
+        basename = os.path.basename(script_path)
+        temp_script = os.path.join(self._tempdir, f'batch.{job_id}.{basename}').replace('\\', '/')
+        if logfile:
+            logfile = f'{temp_script}.log'
+        else:
+            logfile = None
+        with open(script_path, mode='rt') as f:
+            data = f.read()
+        data = ts.convert_script_data(data, self._executor, temp_script, maya_file, self._modulepath)
+        with open(temp_script, mode='wt') as f:
+            f.write(data)
+
+        arguments = ts.parse_script_to_arguments(temp_script)
+
+        process = Worker3(self)
+        process.on_log.connect(lambda x: self.handle_log(job_id, x))
+        process.on_progress.connect(lambda x: self.handle_progress(job_id, x))
+        process.finished.connect(lambda: self.handle_finish(job_id, out_log=logfile))
+        process.finished.connect(lambda: self.execute_queue())
+        process.setProgram(arguments[0])
+        process.setArguments(arguments[1:])
+        # process.start(arguments[0], arguments[1:])
+
+        # Set default status to waiting, 0 progress.
+        self._state[job_id] = DEFAULT_STATE.copy()
+        self._state[job_id]['script'] = basename
+        self._state[job_id]['file'] = os.path.basename(maya_file)
+        if logfile:
+            self._state[job_id]['logfile'] = logfile  # open(logfile, 'w')
+        
+        self._jobs[job_id] = process
+
+        print("Queuing process", job_id, process)
+        self.execute_queue()
+        self.layoutChanged.emit()
+
+    def execute_queue(self):
+        print(self._running)
+        for job_id, process in self._jobs.items():
+            if len(self._running) >= 2:
+                return
+            if process.state() == QProcess.NotRunning and not job_id in self._running:
+                process.start()
+                self._running.append(job_id)
+        print(self._running)
+            
 
     def execute_detach2(self, arguments, logfile=None, job_id=None):
         """
@@ -223,10 +417,6 @@ class JobManager(QAbstractListModel):
         self.threadpool.start(worker)
 
         self.layoutChanged.emit()
-
-    def set_mayapy_version(self, version):
-        self._executor = MAYAPY[version].replace('\\', '/')
-        print('Set executor', self._executor)
     
     def execute_mayapy_script(self, script_path, maya_file, logfile=True):
         job_id = uuid.uuid4().hex
@@ -235,6 +425,8 @@ class JobManager(QAbstractListModel):
         temp_script = os.path.join(self._tempdir, f'batch.{job_id}.{basename}').replace('\\', '/')
         if logfile:
             logfile = f'{temp_script}.log'
+        else:
+            logfile = None
         with open(script_path, mode='rt') as f:
             data = f.read()
         data = ts.convert_script_data(data, self._executor, temp_script, maya_file, self._modulepath)
@@ -242,9 +434,9 @@ class JobManager(QAbstractListModel):
             f.write(data)
 
         arguments = ts.parse_script_to_arguments(temp_script)
-
+        
         # Pass the function to execute
-        worker = Worker(arguments) # Any other args, kwargs are passed to the run function
+        worker = Worker2(arguments, logfile=logfile)
         worker.signals.log.connect(lambda x: self.handle_log(job_id, x))
         worker.signals.progress.connect(lambda x: self.handle_progress(job_id, x))
         worker.signals.finished.connect(lambda: self.handle_finish(job_id, out_log=logfile))
@@ -253,9 +445,8 @@ class JobManager(QAbstractListModel):
         self._state[job_id] = DEFAULT_STATE.copy()
         self._state[job_id]['script'] = basename
         self._state[job_id]['file'] = os.path.basename(maya_file)
-
         if logfile:
-            self._state[job_id]['logfile'] = open(logfile, 'w')
+            self._state[job_id]['logfile'] = logfile  # open(logfile, 'w')
         
         self._jobs[job_id] = worker
 
@@ -272,8 +463,6 @@ class JobManager(QAbstractListModel):
         if log.startswith('PROGRESS:'):
             self._state[job_id]["log"] = log.partition(':')[2]
 
-        if isinstance(self._state[job_id]['logfile'], TextIOWrapper):
-            self._state[job_id]['logfile'].write(log)
         self.result.emit(job_id, log)
         # self.layoutChanged.emit()
 
@@ -285,13 +474,10 @@ class JobManager(QAbstractListModel):
         """
         print('Finished process', job_id)
         self._state[job_id]["progress"] = 100
-        if isinstance(self._state[job_id]['logfile'], TextIOWrapper):
-            self._state[job_id]['logfile'].close()
-        
-        try:
+        if job_id in self._running:
+            self._running.remove(job_id)
+        if isinstance(self._jobs[job_id], QRunnable):
             self.threadpool.tryTake(self._jobs[job_id])
-        except:
-            pass
         del self._jobs[job_id]
         self.finished.emit(out_log)
         self.layoutChanged.emit()
@@ -303,7 +489,17 @@ class JobManager(QAbstractListModel):
         for job_id, s in list(self._state.items()):
 
             if self._jobs.get(job_id):
-                if self.threadpool.tryTake(self._jobs[job_id]):
+                killed = True
+                try:
+                    if isinstance(self._jobs[job_id], QRunnable):
+                        self.threadpool.tryTake(self._jobs[job_id])
+                except RuntimeError as e:
+                    print(e)
+                    pass
+                else:
+                    killed = True
+
+                if killed:
                     del self._state[job_id]
                     del self._jobs[job_id]
 

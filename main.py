@@ -75,7 +75,7 @@ class MainWindow(QMainWindow):
 
         self.ui.actionMayapy.setChecked(True)
         self.add_presets()
-        # self.add_file(r"D:\temp\test\Base_Rig_Latest_0.mb")
+        self.add_file(r"D:\temp\test\Base_Rig_Latest_0.mb")
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_1.mb")
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_2.mb")
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_3.mb")
@@ -205,7 +205,7 @@ class MainWindow(QMainWindow):
         if isinstance(t, TaskItem):
             for i in range(count):
                 f = self.ui.lw_files.item(i).path
-                self.job.execute_mayapy_script(t.path, f)
+                self.job.queue_process(t.path, f)
             return
 
         QMessageBox.information(self, "Information", "Please select a task")
