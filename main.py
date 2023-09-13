@@ -76,10 +76,10 @@ class MainWindow(QMainWindow):
         self.ui.actionMayapy.setChecked(True)
         self.add_presets()
         self.add_file(r"D:\temp\test\Base_Rig_Latest_0.mb")
-        # self.add_file(r"D:\temp\test\Base_Rig_Latest_1.mb")
-        # self.add_file(r"D:\temp\test\Base_Rig_Latest_2.mb")
-        # self.add_file(r"D:\temp\test\Base_Rig_Latest_3.mb")
-        # self.add_file(r"D:\temp\test\Base_Rig_Latest_4.mb")
+        self.add_file(r"D:\temp\test\Base_Rig_Latest_1.mb")
+        self.add_file(r"D:\temp\test\Base_Rig_Latest_2.mb")
+        self.add_file(r"D:\temp\test\Base_Rig_Latest_3.mb")
+        self.add_file(r"D:\temp\test\Base_Rig_Latest_4.mb")
 
 
     def build_ui(self):
@@ -111,7 +111,7 @@ class MainWindow(QMainWindow):
             self.ui.menuMaya.addAction(a)
             max_group.addAction(a)
             a.triggered.connect(partial(self.job.set_max_instance, n=n))
-            if n==2:
+            if n==4:
                 a.setChecked(True)
         
         exe_group = QActionGroup(self)
@@ -206,6 +206,7 @@ class MainWindow(QMainWindow):
             for i in range(count):
                 f = self.ui.lw_files.item(i).path
                 self.job.queue_process(t.path, f)
+            self.ui.lw_files.clear()
             return
 
         QMessageBox.information(self, "Information", "Please select a task")

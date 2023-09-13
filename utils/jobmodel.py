@@ -170,69 +170,6 @@ class Worker(QRunnable):
         self.signals.finished.emit()  # exit callback
 
 
-class Worker2(QRunnable):
-
-    def __init__(self, args, logfile=None, parser=None):
-        super().__init__()
-
-        self.args = args
-        self.parser = parser
-        self.signals = WorkerSignals()
-        self.logfile = logfile
-        self.logfileIO = None
-        self.progress = 0
-
-        self.process = None
-        
-    @Slot()
-    def run(self):
-        self.process = QProcess()  # Keep a reference to the QProcess (e.g. on self) while it's running.
-        self.process.readyReadStandardOutput.connect(self.handle_stdout)
-        self.process.readyReadStandardError.connect(self.handle_stderr)
-        self.process.stateChanged.connect(self.handle_state)
-        self.process.started.connect(self.process_started)
-        self.process.finished.connect(self.process_finished)  # Clean up once complete.
-        print(self.args[0], self.args[1:])
-        self.process.start(self.args[0], self.args[1:])
-
-    def handle_stderr(self):
-        data = self.process.readAllStandardError()
-        stderr = bytes(data).decode("utf8")
-        if isinstance(self.logfileIO, TextIOWrapper):
-            self.logfileIO.write(stderr)
-
-    def handle_stdout(self):
-        data = self.process.readAllStandardOutput()
-        stdout = bytes(data).decode("utf8")
-        self.signals.log.emit(stdout)
-        if isinstance(self.logfileIO, TextIOWrapper):
-            self.logfileIO.write(stdout)
-
-        self.progress += 1
-        if self.progress >= 100:
-            self.progress = 1
-        self.signals.progress.emit(self.progress)
-
-    def handle_state(self, state):
-        states = {
-            QProcess.NotRunning: 'Not running',
-            QProcess.Starting: 'Starting',
-            QProcess.Running: 'Running',
-        }
-        state_name = states[state]
-
-    def process_started(self):
-        if self.logfile:
-            self.logfileIO = open(self.logfile, 'w')
-
-    def process_finished(self):
-        if isinstance(self.logfileIO, TextIOWrapper):
-            self.logfileIO.close()
-        self.progress = 100
-        self.signals.finished.emit()
-        self.process = None
-
-
 class Worker3(QProcess):
 
     on_log = Signal(str)
@@ -242,20 +179,14 @@ class Worker3(QProcess):
         super().__init__(parent)
 
         self.setProcessChannelMode(QProcess.MergedChannels)
-        # self.readyRead.connect(self.handle_std)
         self.readyReadStandardOutput.connect(self.handle_stdout)
         self.readyReadStandardError.connect(self.handle_stderr)
         self.stateChanged.connect(self.handle_state)
+        self.logfile = None
         self.progress = 0
 
     def handle_state(self):
         pass
-
-    def handle_std(self):
-        data = self.readAll()
-        stdout = bytes(data).decode("utf8")
-        self.on_log.emit(stdout)
-        self.handle_progress(stdout)
 
     def handle_stderr(self):
         data = self.readAllStandardError()
@@ -384,7 +315,7 @@ class JobManager(QAbstractListModel):
     def execute_queue(self):
         print(self._running)
         for job_id, process in self._jobs.items():
-            if len(self._running) >= 2:
+            if len(self._running) >= self._maxinstance:
                 return
             if process.state() == QProcess.NotRunning and not job_id in self._running:
                 process.start()
