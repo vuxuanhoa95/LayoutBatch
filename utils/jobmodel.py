@@ -27,7 +27,8 @@ STATES = {
     QProcess.Running: "Running...",
 }
 
-DEFAULT_STATE = {"progress": 0, "log": '', 'logfile': None, 
+DEFAULT_STATE = {"progress": 0, "progress_count": 100, 
+                 "log": '', 'logfile': None, 
                  'script': 'task', 
                  'file': 'empty'}
 
@@ -173,46 +174,69 @@ class Worker(QRunnable):
 class Worker3(QProcess):
 
     on_log = Signal(str)
-    on_progress = Signal(int)
+    on_progress = Signal(int, int)
 
-    def __init__(self, parent: QObject | None) -> None:
+    def __init__(self, parent: QObject) -> None:
         super().__init__(parent)
 
         self.setProcessChannelMode(QProcess.MergedChannels)
         self.readyReadStandardOutput.connect(self.handle_stdout)
         self.readyReadStandardError.connect(self.handle_stderr)
+        self.started.connect(self.handle_started)
+        self.finished.connect(self.handle_finished)
         self.stateChanged.connect(self.handle_state)
         self.logfile = None
+        self.logfileIO = None
         self.progress = 0
+        self.progress_count = 100
 
     def handle_state(self):
         pass
+
+    def handle_started(self):
+        if self.logfile:
+            try:
+                self.logfileIO = open(self.logfile, 'w')
+            except:
+                pass
+
+    def handle_finished(self):
+        if isinstance(self.logfileIO, TextIOWrapper):
+            self.logfileIO.close()
 
     def handle_stderr(self):
         data = self.readAllStandardError()
         stderr = bytes(data).decode("utf8")
         self.on_log.emit(stderr)
-        # if isinstance(self.logfileIO, TextIOWrapper):
-        #     self.logfileIO.write(stderr)
+        if isinstance(self.logfileIO, TextIOWrapper):
+            self.logfileIO.write(stderr)
 
     def handle_stdout(self):
         data = self.readAllStandardOutput()
         stdout = bytes(data).decode("utf8")
         self.on_log.emit(stdout)
-        # if isinstance(self.logfileIO, TextIOWrapper):
-        #     self.logfileIO.write(stdout)
-        # self.handle_progress(stdout)
-        self.progress += 1
-        if self.progress >= 100:
-            self.progress = 1
-        self.on_progress.emit(self.progress)
+        if isinstance(self.logfileIO, TextIOWrapper):
+            self.logfileIO.write(stdout)
+        self.handle_progress(stdout)
+        # self.progress += 1
+        # if self.progress >= 100:
+        #     self.progress = 1
+        # self.on_progress.emit(self.progress)
 
     def handle_progress(self, data):
-        if simple_parser(data):
-            self.progress += 1
-            if self.progress >= 100:
-                self.progress = 1
-            self.on_progress.emit(self.progress)
+        if data.startswith('PROGRESSCOUNT:'):
+            print(data)
+            data = data.split(":")
+            print(data[1])
+            self.progress_count = int(data[1])
+            print('set progresscount', self.progress_count)
+        if data.startswith('PROGRESS:'):
+            print(data)
+            data = data.split(":")
+            print(data[1])
+            self.progress = int(data[1])
+            print('set progress', self.progress)
+        self.on_progress.emit(self.progress, self.progress_count)
 
 
 class JobManager(QAbstractListModel):
@@ -292,7 +316,7 @@ class JobManager(QAbstractListModel):
 
         process = Worker3(self)
         process.on_log.connect(lambda x: self.handle_log(job_id, x))
-        process.on_progress.connect(lambda x: self.handle_progress(job_id, x))
+        process.on_progress.connect(lambda x, y: self.handle_progress(job_id, x, y))
         process.finished.connect(lambda: self.handle_finish(job_id, out_log=logfile))
         process.finished.connect(lambda: self.execute_queue())
         process.setProgram(arguments[0])
@@ -386,8 +410,9 @@ class JobManager(QAbstractListModel):
 
         self.layoutChanged.emit()
 
-    def handle_progress(self, job_id, progress):
+    def handle_progress(self, job_id, progress, progress_count):
         self._state[job_id]["progress"] = progress
+        self._state[job_id]["progress_count"] = progress_count
         self.layoutChanged.emit()
 
     def handle_log(self, job_id, log):
@@ -458,10 +483,11 @@ class ProgressBarDelegate(QStyledItemDelegate):
         job_id, data = index.model().data(index, Qt.DisplayRole)
 
         progress = data["progress"]
+        progress_count = data["progress_count"]
         
-        if progress == 100:
+        if progress >= progress_count:
             status = 'DONE'
-        elif progress == 0:
+        elif progress == 0.0:
             status = 'Starting...'
         else:
             status = 'Running...'
@@ -470,14 +496,14 @@ class ProgressBarDelegate(QStyledItemDelegate):
         script = data['script']
         file = data['file']
 
-        if progress > 0:
+        if progress > 0.0:
             color = QColor(STATUS_COLORS[QProcess.Running])
 
             brush = QBrush()
             brush.setColor(color)
             brush.setStyle(Qt.SolidPattern)
 
-            width = option.rect.width() * progress / 100
+            width = option.rect.width() * progress / progress_count
 
             rect = QRect(
                 option.rect
@@ -488,4 +514,4 @@ class ProgressBarDelegate(QStyledItemDelegate):
 
         pen = QPen()
         pen.setColor(Qt.black)
-        painter.drawText(option.rect, Qt.AlignLeft, f'{file} | {script} | {status}')
+        painter.drawText(option.rect, Qt.AlignLeft, f'{script} | {file} | {status}')

@@ -152,28 +152,32 @@ def maya_export_skel(maya_file=None, main_skel=False, cleanup=False):
 
     # export all skin
     mesh_transform = get_transform_by_shape_type()
+    matches = []
     for t in sorted(mesh_transform):
         if t.startswith(look_in_group):
             input_string = t.split('|')[-1]
             match = re.match(pattern, input_string)
             if match:
-                match = match.groupdict()
-                export_name = '{}{}{}.fbx'.format(match["PartName"], match["Rarity"], match["SkinName"])
-                export_path = os.path.join(export_dir, export_name)
-                to_export = default_export.copy()
-                to_export.append(t)
-                print('PROGRESS:Exporting', export_path)
-                export_fbx(export_path, to_export)
-                exported.append(export_path)
-                print('Exported', export_path)
-            # if len(exported) >= 5:
-            #     break
+                matches.append(match.groupdict())
+
+    print('PROGRESSCOUNT:{}'.format(len(matches)))
+    for i, match in enumerate(matches):
+        export_name = '{}{}{}.fbx'.format(match["PartName"], match["Rarity"], match["SkinName"])
+        export_path = os.path.join(export_dir, export_name)
+        to_export = default_export.copy()
+        to_export.append(t)
+        print('PROGRESS:{}:Exporting'.format(i), export_path)
+        export_fbx(export_path, to_export)
+        exported.append(export_path)
+        print('Exported', export_path)
+        # if len(exported) >= 5:
+        #     break
     print('Finished exporting. Total file: ', len(exported))
 
     # clean up fbx
     if cleanup:
         for f in sorted(exported):
-            print('PROGRESS:Cleaning', f)
+            # print('PROGRESS:Cleaning', f)
             cleanup_fbx(f)
             print('cleaned', f)
 
