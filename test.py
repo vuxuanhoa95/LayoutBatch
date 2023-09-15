@@ -1,4 +1,4 @@
-import tempfile
+import sys
 
 
-print(tempfile.gettempdir())
+print(sys.executable)

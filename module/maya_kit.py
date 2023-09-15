@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 
 import maya.cmds as cmds
 import maya.mel as mel
@@ -160,13 +161,15 @@ def maya_export_skel(maya_file=None, main_skel=False, cleanup=False):
             if match:
                 matches.append(match.groupdict())
 
-    print('PROGRESSCOUNT:{}'.format(len(matches)))
+    print('PROGRESSCOUNT:{}\n'.format(len(matches)), flush=True)
+    
     for i, match in enumerate(matches):
         export_name = '{}{}{}.fbx'.format(match["PartName"], match["Rarity"], match["SkinName"])
         export_path = os.path.join(export_dir, export_name)
         to_export = default_export.copy()
         to_export.append(t)
-        print('PROGRESS:{}:Exporting'.format(i), export_path)
+        print('PROGRESS:{}:Exporting:{}\n'.format(i, export_path), flush=True)
+
         export_fbx(export_path, to_export)
         exported.append(export_path)
         print('Exported', export_path)

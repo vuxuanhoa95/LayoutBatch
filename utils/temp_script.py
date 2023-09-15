@@ -1,4 +1,5 @@
 import os
+import sys
 import uuid
 
 
@@ -16,12 +17,14 @@ def copy_script_to_temp_dir(script_path, temp_dir, maya_file, module_path):
     return(temp_file)
 
 
-def convert_script_data(data, mayapy_path, temp_file, maya_file, module_path):
+def convert_script_data(data, mayapy_path, temp_file, input_file, module_path):
 
     mapping = {'__MAYAPY__': f'"{mayapy_path}"',
         '__file__': f'"{temp_file}"', 
-        '__MAYAFILE__': f'"{maya_file}"',
+        '__INPUTFILE__': f'"{input_file}"',
         '__MODULE__': f'"{module_path}"',
+        '__PYTHON__': f'"{sys.executable}"',
+        '__TOOLS__': r'"D:\Github\LayoutBatch\tools"',
     }
     
     for k, v in mapping.items():

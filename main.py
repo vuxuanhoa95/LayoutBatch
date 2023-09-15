@@ -8,7 +8,7 @@ from PySide6.QtCore import QObject, QEvent
 from PySide6.QtGui import QCursor, QAction, QActionGroup, QCloseEvent
 from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMenu, QListWidgetItem, QMessageBox
 
-from utils import jobmodel, temp_script as ts
+from utils import jobmodel
 from main_ui import Ui_MainWindow
 
 def resource_path(relative_path):
@@ -76,10 +76,10 @@ class MainWindow(QMainWindow):
         self.ui.actionMayapy.setChecked(True)
         self.add_presets()
         self.add_file(r"D:\temp\test\Base_Rig_Latest_0.mb")
-        self.add_file(r"D:\temp\test\Base_Rig_Latest_1.mb")
-        self.add_file(r"D:\temp\test\Base_Rig_Latest_2.mb")
-        self.add_file(r"D:\temp\test\Base_Rig_Latest_3.mb")
-        self.add_file(r"D:\temp\test\Base_Rig_Latest_4.mb")
+        # self.add_file(r"D:\temp\test\Base_Rig_Latest_1.mb")
+        # self.add_file(r"D:\temp\test\Base_Rig_Latest_2.mb")
+        # self.add_file(r"D:\temp\test\Base_Rig_Latest_3.mb")
+        # self.add_file(r"D:\temp\test\Base_Rig_Latest_4.mb")
 
 
     def build_ui(self):
@@ -244,7 +244,7 @@ class MainWindow(QMainWindow):
     def add_presets(self, presets: dict = None):
         preset_path = resource_path('preset')
         for f in os.listdir(preset_path):
-            if f == '__init__.py' or not f.endswith('.py') or not f.startswith('export'):
+            if f == '__init__.py' or not f.endswith('.py'):
                 continue
             name, _ = os.path.splitext(f)
             path = os.path.join(preset_path, f)

@@ -6,6 +6,7 @@ from typing import Optional
 import uuid
 from io import TextIOWrapper
 import sys
+import re
 
 from PySide6.QtCore import QAbstractListModel, Signal, Slot, QProcess, QRect, Qt, QObject, QTimer, QRunnable, QThreadPool
 from PySide6.QtGui import QColor, QBrush, QPen
@@ -179,7 +180,6 @@ class Worker3(QProcess):
     def __init__(self, parent: QObject) -> None:
         super().__init__(parent)
 
-        self.setProcessChannelMode(QProcess.MergedChannels)
         self.readyReadStandardOutput.connect(self.handle_stdout)
         self.readyReadStandardError.connect(self.handle_stderr)
         self.started.connect(self.handle_started)
@@ -218,25 +218,29 @@ class Worker3(QProcess):
         if isinstance(self.logfileIO, TextIOWrapper):
             self.logfileIO.write(stdout)
         self.handle_progress(stdout)
+
         # self.progress += 1
         # if self.progress >= 100:
         #     self.progress = 1
-        # self.on_progress.emit(self.progress)
+        # self.on_progress.emit(self.progress, self.progress_count)
 
     def handle_progress(self, data):
-        if data.startswith('PROGRESSCOUNT:'):
-            print(data)
-            data = data.split(":")
-            print(data[1])
-            self.progress_count = int(data[1])
+        pattern_0 = r'(?:PROGRESSCOUNT:)(\d+)'
+        match_0 = re.search(pattern_0, data)
+        if match_0:
+            self.progress_count = int(match_0.group(1))
+            self.progress = 0
             print('set progresscount', self.progress_count)
-        if data.startswith('PROGRESS:'):
-            print(data)
-            data = data.split(":")
-            print(data[1])
-            self.progress = int(data[1])
+            self.on_progress.emit(self.progress, self.progress_count)
+            return
+        
+        pattern_1 = r'(?:PROGRESS:)(\d+)'
+        match_1 = re.search(pattern_1, data)
+        if match_1:
+            self.progress = int(match_1.group(1))
+            # self.progress += 1
             print('set progress', self.progress)
-        self.on_progress.emit(self.progress, self.progress_count)
+            self.on_progress.emit(self.progress, self.progress_count)
 
 
 class JobManager(QAbstractListModel):
@@ -257,7 +261,6 @@ class JobManager(QAbstractListModel):
 
     status = Signal(str)
     result = Signal(str, object)
-    progress = Signal(str, int)
     finished = Signal(object)
 
     def __init__(self):
@@ -315,6 +318,8 @@ class JobManager(QAbstractListModel):
         arguments = ts.parse_script_to_arguments(temp_script)
 
         process = Worker3(self)
+        if logfile:
+            process.logfile = logfile
         process.on_log.connect(lambda x: self.handle_log(job_id, x))
         process.on_progress.connect(lambda x, y: self.handle_progress(job_id, x, y))
         process.finished.connect(lambda: self.handle_finish(job_id, out_log=logfile))
@@ -346,70 +351,6 @@ class JobManager(QAbstractListModel):
                 self._running.append(job_id)
         print(self._running)
             
-
-    def execute_detach2(self, arguments, logfile=None, job_id=None):
-        """
-        Execute a command by starting a new process.
-        """
-
-        if not job_id:
-            job_id = uuid.uuid4().hex
-
-        # Pass the function to execute
-        worker = Worker(arguments) # Any other args, kwargs are passed to the run function
-        worker.signals.log.connect(lambda x: self.handle_log(job_id, x))
-        worker.signals.progress.connect(lambda x: self.handle_progress(job_id, x))
-        worker.signals.finished.connect(lambda: self.handle_finish(job_id))
-
-        # Set default status to waiting, 0 progress.
-        self._state[job_id] = DEFAULT_STATE.copy()
-        if logfile:
-            self._state[job_id]['logfile'] = open(logfile, 'w')
-        
-        self._jobs[job_id] = worker
-
-        print("Starting process", job_id)
-        self.threadpool.start(worker)
-
-        self.layoutChanged.emit()
-    
-    def execute_mayapy_script(self, script_path, maya_file, logfile=True):
-        job_id = uuid.uuid4().hex
-        
-        basename = os.path.basename(script_path)
-        temp_script = os.path.join(self._tempdir, f'batch.{job_id}.{basename}').replace('\\', '/')
-        if logfile:
-            logfile = f'{temp_script}.log'
-        else:
-            logfile = None
-        with open(script_path, mode='rt') as f:
-            data = f.read()
-        data = ts.convert_script_data(data, self._executor, temp_script, maya_file, self._modulepath)
-        with open(temp_script, mode='wt') as f:
-            f.write(data)
-
-        arguments = ts.parse_script_to_arguments(temp_script)
-        
-        # Pass the function to execute
-        worker = Worker2(arguments, logfile=logfile)
-        worker.signals.log.connect(lambda x: self.handle_log(job_id, x))
-        worker.signals.progress.connect(lambda x: self.handle_progress(job_id, x))
-        worker.signals.finished.connect(lambda: self.handle_finish(job_id, out_log=logfile))
-
-        # Set default status to waiting, 0 progress.
-        self._state[job_id] = DEFAULT_STATE.copy()
-        self._state[job_id]['script'] = basename
-        self._state[job_id]['file'] = os.path.basename(maya_file)
-        if logfile:
-            self._state[job_id]['logfile'] = logfile  # open(logfile, 'w')
-        
-        self._jobs[job_id] = worker
-
-        print("Starting process", job_id, worker)
-        self.threadpool.start(worker)
-
-        self.layoutChanged.emit()
-
     def handle_progress(self, job_id, progress, progress_count):
         self._state[job_id]["progress"] = progress
         self._state[job_id]["progress_count"] = progress_count
