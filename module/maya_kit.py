@@ -14,14 +14,20 @@ def export_fbx(output, nodes=None, start_frame=None, end_frame=None, anim=False)
     set_frame_range(start_frame, end_frame)
 
     mel.eval("FBXResetExport")
-    mel.eval("FBXExportFileVersion -v FBX202000;")
+
+    # format options
+    mel.eval("FBXExportFileVersion -v FBX201800;")
     # mel.eval("FBXExportUpAxis z;")
     # mel.eval("FBXExportInAscii -v 1;")
-    mel.eval("FBXExportQuaternion -v resample;")
-    mel.eval("FBXExportApplyConstantKeyReducer -v 0;")
-    mel.eval('FBXProperty "Export|AdvOptGrp|UnitsGrp|UnitsSelector" -v Centimeters;')
-    mel.eval('FBXProperty "Export|AdvOptGrp|UnitsGrp|DynamicScaleConversion" -v true;')
+    # mel.eval('FBXProperty "Export|AdvOptGrp|UnitsGrp|UnitsSelector" -v Centimeters;')
+    # mel.eval('FBXProperty "Export|AdvOptGrp|UnitsGrp|DynamicScaleConversion" -v 1;')
+
+    # modeling options
+    mel.eval("FBXExportSmoothingGroups -v 1;")
+    mel.eval("FBXExportSkins -v 1")
+    mel.eval("FBXExportShapes -v 1")
     
+    # other options
     mel.eval("FBXExportConstraints -v 0;")
     mel.eval("FBXExportEmbeddedTextures -v 0;")
     mel.eval("FBXExportCameras -v 1;")
@@ -34,6 +40,8 @@ def export_fbx(output, nodes=None, start_frame=None, end_frame=None, anim=False)
         mel.eval("FBXExportBakeComplexEnd -v {};".format(end_frame))
         mel.eval("FBXExportBakeResampleAnimation -v 1;")
         mel.eval("FBXExportBakeComplexStep -v 1;")
+        mel.eval("FBXExportQuaternion -v resample;")
+        mel.eval("FBXExportApplyConstantKeyReducer -v 0;")
 
     if nodes is None:
         mel.eval('FBXExport -f "{}"'.format(output).replace("\\", "\\\\"))
@@ -159,17 +167,73 @@ def maya_export_skel(maya_file=None, main_skel=False, cleanup=False):
             input_string = t.split('|')[-1]
             match = re.match(pattern, input_string)
             if match:
-                matches.append(match.groupdict())
+                matches.append((t, match.groupdict()))
 
     print('PROGRESSCOUNT:{}\n'.format(len(matches)), flush=True)
     
-    for i, match in enumerate(matches):
+    for i, (t, match) in enumerate(matches):
         export_name = '{}{}{}.fbx'.format(match["PartName"], match["Rarity"], match["SkinName"])
         export_path = os.path.join(export_dir, export_name)
         to_export = default_export.copy()
         to_export.append(t)
         print('PROGRESS:{}:Exporting:{}\n'.format(i, export_path), flush=True)
 
+        export_fbx(export_path, to_export)
+        exported.append(export_path)
+        print('Exported', export_path)
+        # if len(exported) >= 5:
+        #     break
+    print('Finished exporting. Total file: ', len(exported))
+
+    # clean up fbx
+    if cleanup:
+        for f in sorted(exported):
+            # print('PROGRESS:Cleaning', f)
+            cleanup_fbx(f)
+            print('cleaned', f)
+
+def maya_export_skel_v2(maya_file=None, main_skel=False, cleanup=False):
+    cmds.loadPlugin("gameFbxExporter.mll")
+    if maya_file is None:  # run on current file
+        maya_file = cmds.file(q=True, sn=True)
+        maya_file_name, _ = os.path.splitext(os.path.basename(maya_file))
+        export_dir = cmds.fileDialog2(dialogStyle=2, fileMode=2)
+        if not export_dir:
+            return
+        export_dir = export_dir[0]
+    
+    else:
+        cmds.file(maya_file, o=True, f=True)
+        maya_file_name = os.path.basename(maya_file)
+        export_dir = os.path.join(os.path.dirname(maya_file), "skel.{}".format(maya_file_name))
+
+    if not os.path.isdir(export_dir):
+        os.mkdir(export_dir)
+
+    look_in_group = '|group|geo'  # TODO: check namespace
+    default_export = ["DeformationSystem"]  # TODO: check namespace
+    exported = []
+
+    # export main skeleton
+    if main_skel:
+        main_skeleton = os.path.join(export_dir, '{}.fbx'.format(maya_file_name))
+        export_fbx(main_skeleton, default_export)
+        exported.append(main_skeleton)
+
+    # export all skin
+    mesh_transform = get_transform_by_shape_type()
+    matches = []
+    for t in sorted(mesh_transform):
+        if t.lower().startswith(look_in_group):
+            matches.append((t, t.split('|')[-1]))
+
+    print('PROGRESSCOUNT:{}\n'.format(len(matches)), flush=True)
+    for i, (t, match) in enumerate(matches):
+        export_name = '{}.fbx'.format(match)
+        export_path = os.path.join(export_dir, export_name)
+        to_export = default_export.copy()
+        to_export.append(t)
+        print('PROGRESS:{}:Exporting:{}\n'.format(i, export_path), flush=True)
         export_fbx(export_path, to_export)
         exported.append(export_path)
         print('Exported', export_path)

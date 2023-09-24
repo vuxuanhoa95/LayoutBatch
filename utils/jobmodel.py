@@ -7,8 +7,9 @@ import uuid
 from io import TextIOWrapper
 import sys
 import re
+import time
 
-from PySide6.QtCore import QAbstractListModel, Signal, Slot, QProcess, QRect, Qt, QObject, QTimer, QRunnable, QThreadPool
+from PySide6.QtCore import QAbstractListModel, Signal, Slot, QProcess, QRect, Qt, QObject, QTimer, QTime, QRunnable, QThreadPool
 from PySide6.QtGui import QColor, QBrush, QPen
 from PySide6.QtWidgets import QStyledItemDelegate
 
@@ -28,10 +29,11 @@ STATES = {
     QProcess.Running: "Running...",
 }
 
-DEFAULT_STATE = {"progress": 0, "progress_count": 100, 
+DEFAULT_STATE = {"progress": 0, "progress_count": 100, "real_progress": False,
+                 "exectime": None,
                  "log": '', 'logfile': None, 
                  'script': 'task', 
-                 'file': 'empty'}
+                 'file': ''}
 
 
 MAYAPY = {k: str(ml.mayapy(k)) for k in ml.installed_maya_versions()}
@@ -176,6 +178,7 @@ class Worker3(QProcess):
 
     on_log = Signal(str)
     on_progress = Signal(int, int)
+    on_finished = Signal(float)
 
     def __init__(self, parent: QObject) -> None:
         super().__init__(parent)
@@ -185,8 +188,10 @@ class Worker3(QProcess):
         self.started.connect(self.handle_started)
         self.finished.connect(self.handle_finished)
         self.stateChanged.connect(self.handle_state)
+        self.timer = None
         self.logfile = None
         self.logfileIO = None
+        self.real_progress = False
         self.progress = 0
         self.progress_count = 100
 
@@ -194,6 +199,7 @@ class Worker3(QProcess):
         pass
 
     def handle_started(self):
+        self.timer = time.time()
         if self.logfile:
             try:
                 self.logfileIO = open(self.logfile, 'w')
@@ -201,6 +207,7 @@ class Worker3(QProcess):
                 pass
 
     def handle_finished(self):
+        self.on_finished.emit(time.time() - self.timer)
         if isinstance(self.logfileIO, TextIOWrapper):
             self.logfileIO.close()
 
@@ -225,22 +232,32 @@ class Worker3(QProcess):
         # self.on_progress.emit(self.progress, self.progress_count)
 
     def handle_progress(self, data):
-        pattern_0 = r'(?:PROGRESSCOUNT:)(\d+)'
-        match_0 = re.search(pattern_0, data)
-        if match_0:
-            self.progress_count = int(match_0.group(1))
-            self.progress = 0
-            print('set progresscount', self.progress_count)
-            self.on_progress.emit(self.progress, self.progress_count)
-            return
+        if not self.real_progress:
+            pattern_0 = r'(?:PROGRESSCOUNT:)(\d+)'
+            match_0 = re.search(pattern_0, data)
+            if match_0:
+                self.real_progress = True
+                self.progress_count = int(match_0.group(1))
+                self.progress = 0
+                print('set progresscount', self.progress_count)
+                self.on_progress.emit(self.progress, self.progress_count)
+                return
+            
+            else:
+                self.progress += 1
+                if self.progress >= 100:
+                    self.progress = 1
+                self.on_progress.emit(self.progress, self.progress_count)
+                return
         
-        pattern_1 = r'(?:PROGRESS:)(\d+)'
-        match_1 = re.search(pattern_1, data)
-        if match_1:
-            self.progress = int(match_1.group(1))
-            # self.progress += 1
-            print('set progress', self.progress)
-            self.on_progress.emit(self.progress, self.progress_count)
+        else:
+            pattern_1 = r'(?:PROGRESS:)(\d+)'
+            match_1 = re.search(pattern_1, data)
+            if match_1:
+                self.progress = int(match_1.group(1))
+                # self.progress += 1
+                print('set progress', self.progress)
+                self.on_progress.emit(self.progress, self.progress_count)
 
 
 class JobManager(QAbstractListModel):
@@ -320,9 +337,10 @@ class JobManager(QAbstractListModel):
         process = Worker3(self)
         if logfile:
             process.logfile = logfile
-        process.on_log.connect(lambda x: self.handle_log(job_id, x))
-        process.on_progress.connect(lambda x, y: self.handle_progress(job_id, x, y))
-        process.finished.connect(lambda: self.handle_finish(job_id, out_log=logfile))
+        # process.on_log.connect(lambda x: self.handle_log(job_id, x))
+        process.on_progress.connect(lambda x, y: self.handle_progress(job_id, x, y, process.real_progress))
+        process.on_finished.connect(lambda x: self.handle_finish(job_id, out_log=logfile, exectime=x))
+        # process.finished.connect(lambda: self.handle_finish(job_id, out_log=logfile))
         process.finished.connect(lambda: self.execute_queue())
         process.setProgram(arguments[0])
         process.setArguments(arguments[1:])
@@ -351,19 +369,13 @@ class JobManager(QAbstractListModel):
                 self._running.append(job_id)
         print(self._running)
             
-    def handle_progress(self, job_id, progress, progress_count):
+    def handle_progress(self, job_id, progress, progress_count, real_progress=False):
         self._state[job_id]["progress"] = progress
         self._state[job_id]["progress_count"] = progress_count
+        self._state[job_id]["real_progress"] = real_progress
         self.layoutChanged.emit()
 
-    def handle_log(self, job_id, log):
-        if log.startswith('PROGRESS:'):
-            self._state[job_id]["log"] = log.partition(':')[2]
-
-        self.result.emit(job_id, log)
-        # self.layoutChanged.emit()
-
-    def handle_finish(self, job_id, out_log=None):
+    def handle_finish(self, job_id, out_log=None, exectime=None):
         """
         Task/worker complete. Remove it from the active workers
         dictionary. We leave it in worker_state, as this is used to
@@ -371,6 +383,7 @@ class JobManager(QAbstractListModel):
         """
         print('Finished process', job_id)
         self._state[job_id]["progress"] = 100
+        self._state[job_id]["exectime"] = exectime
         if job_id in self._running:
             self._running.remove(job_id)
         if isinstance(self._jobs[job_id], QRunnable):
@@ -425,13 +438,19 @@ class ProgressBarDelegate(QStyledItemDelegate):
 
         progress = data["progress"]
         progress_count = data["progress_count"]
+        exectime = data["exectime"]
         
         if progress >= progress_count:
             status = 'DONE'
+            if exectime:
+                status += f' in {exectime:.3f} seconds'
+
         elif progress == 0.0:
             status = 'Starting...'
         else:
             status = 'Running...'
+            if data["real_progress"]:
+                status += f'{progress}/{progress_count}'
             status += data["log"]
 
         script = data['script']

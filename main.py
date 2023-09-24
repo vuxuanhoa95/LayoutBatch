@@ -75,7 +75,7 @@ class MainWindow(QMainWindow):
 
         self.ui.actionMayapy.setChecked(True)
         self.add_presets()
-        self.add_file(r"D:\temp\test\Base_Rig_Latest_0.mb")
+        self.add_file(r"D:\Github\MayaExportFBX\FBX_AnimSample\CH_Frogar_A_Rig_Latest.mb")
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_1.mb")
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_2.mb")
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_3.mb")
@@ -106,7 +106,7 @@ class MainWindow(QMainWindow):
         max_group.setExclusive(True)
         for n in range(4):
             n += 1
-            a = QAction(f'Thread {n}', self)
+            a = QAction(f'Max Process {n}', self)
             a.setCheckable(True)
             self.ui.menuMaya.addAction(a)
             max_group.addAction(a)
@@ -132,7 +132,6 @@ class MainWindow(QMainWindow):
         self.ui.actionExit_2.triggered.connect(lambda: self.close())
         self.job.status.connect(self.ui.statusbar.showMessage)
         self.job.finished.connect(self.display_logfile)
-        # self.job.result.connect(self.display_result)
         self.ui.b_execute.pressed.connect(self.run_command)
         self.ui.b_clear.pressed.connect(self.clear_all)
 
