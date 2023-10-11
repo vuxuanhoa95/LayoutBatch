@@ -136,7 +136,9 @@ class MainWindow(QMainWindow):
         self.ui.b_clear.pressed.connect(self.clear_all)
 
         self.ui.lw_files.installEventFilter(self)
+        self.ui.lw_tasks.installEventFilter(self)
         self.ui.pte_log.customContextMenuRequested.connect(self.pte_log_context_menu)
+        self.ui.lw_files.on_dropped.connect(self.handle_drop)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         result = len(self.job._jobs)==0
@@ -164,11 +166,20 @@ class MainWindow(QMainWindow):
                     a = QAction('Remove files', self)
                     a.triggered.connect(lambda: self.remove_file())
                     menu.addAction(a)
+            elif source == self.ui.lw_tasks:
+                a = QAction('Refresh', self)
+                a.triggered.connect(lambda: self.add_presets())
+                menu.addAction(a)
 
             menu.exec(QCursor.pos())
             del menu
 
         return super().eventFilter(source, event)
+    
+    def handle_drop(self, links):
+        for url in links:
+            if os.path.exists(url):
+                self.add_file(url)
 
     def pte_log_context_menu(self, event):
         source = self.ui.pte_log
@@ -238,9 +249,10 @@ class MainWindow(QMainWindow):
             basename = os.path.basename(path)
             item = FileItem(basename, path)
             lw.addItem(item)
-            print('Added', basename)
+            print('Added', path)
 
-    def add_presets(self, presets: dict = None):
+    def add_presets(self):
+        self.ui.lw_tasks.clear()
         preset_path = resource_path('preset')
         for f in os.listdir(preset_path):
             if f == '__init__.py' or not f.endswith('.py'):

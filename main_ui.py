@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'main.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.3.1
+## Created by: Qt User Interface Compiler version 6.5.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QGridLayout, QLi
     QListWidget, QListWidgetItem, QMainWindow, QMenu,
     QMenuBar, QPlainTextEdit, QPushButton, QSizePolicy,
     QSplitter, QStatusBar, QVBoxLayout, QWidget)
+
+from widget import DragList
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -59,7 +61,7 @@ class Ui_MainWindow(object):
         self.splitter = QSplitter(self.splitter_3)
         self.splitter.setObjectName(u"splitter")
         self.splitter.setOrientation(Qt.Horizontal)
-        self.lw_files = QListWidget(self.splitter)
+        self.lw_files = DragList(self.splitter)
         self.lw_files.setObjectName(u"lw_files")
         self.lw_files.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.lw_files.setSelectionRectVisible(True)
@@ -104,7 +106,7 @@ class Ui_MainWindow(object):
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 509, 21))
+        self.menubar.setGeometry(QRect(0, 0, 509, 22))
         self.menuFile = QMenu(self.menubar)
         self.menuFile.setObjectName(u"menuFile")
         self.menuFile.setTearOffEnabled(False)
