@@ -46,9 +46,10 @@ def is_valid_path(string: str):
 
 class TaskItem(QListWidgetItem):
 
-    def __init__(self, name, path=None):
+    def __init__(self, name, path):
         super().__init__(name)
-        self.path = path
+        self.name = name
+        self.path = path.replace('\\', '/')
 
 
 class FileItem(QListWidgetItem):
@@ -75,6 +76,7 @@ class MainWindow(QMainWindow):
 
         self.ui.actionMayapy.setChecked(True)
         self.add_presets()
+        self.add_plugins()
         self.add_file(r"D:\Github\MayaExportFBX\FBX_AnimSample\CH_Frogar_A_Rig_Latest.mb")
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_1.mb")
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_2.mb")
@@ -245,11 +247,31 @@ class MainWindow(QMainWindow):
 
     def add_file(self, path):
         if os.path.exists(path):
-            lw = self.ui.lw_files
-            basename = os.path.basename(path)
-            item = FileItem(basename, path)
-            lw.addItem(item)
-            print('Added', path)
+            item = FileItem(os.path.basename(path), path)
+            self.ui.lw_files.addItem(item)
+            print('Added file', path)
+
+    def add_task(self, path, name=None):
+        if os.path.exists(path):
+            if not name:
+                name, _ = os.path.splitext(os.path.basename(path))
+            item = TaskItem(name, path)
+            self.ui.lw_tasks.addItem(item)
+            print('Added task', item.name)
+
+    def add_plugins(self):
+        plugin_dir = resource_path('plugins')
+        for plugin in os.listdir(plugin_dir):
+            plugin_path = resource_path(f'plugins/{plugin}')
+            if not os.path.isdir(plugin_path):
+                continue
+            for task in os.listdir(plugin_path):
+                task_path = resource_path(f'plugins/{plugin}/{task}')
+                if not os.path.isdir(task_path):
+                    continue
+                if os.path.isfile(resource_path(f'plugins/{plugin}/{task}/lb_{plugin}_{task}.py')):
+                    print(f'Added plugin {task}')
+                
 
     def add_presets(self):
         self.ui.lw_tasks.clear()
@@ -257,10 +279,7 @@ class MainWindow(QMainWindow):
         for f in os.listdir(preset_path):
             if f == '__init__.py' or not f.endswith('.py'):
                 continue
-            name, _ = os.path.splitext(f)
-            path = os.path.join(preset_path, f)
-            item = TaskItem(name, path=path)
-            self.ui.lw_tasks.addItem(item)
+            self.add_task(os.path.join(preset_path, f))
 
 
 if __name__ == "__main__":
