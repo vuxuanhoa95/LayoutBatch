@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>509</width>
-    <height>380</height>
+    <width>750</width>
+    <height>644</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -24,14 +24,6 @@
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>
-       <widget class="DragList" name="lw_files">
-        <property name="selectionMode">
-         <enum>QAbstractItemView::ExtendedSelection</enum>
-        </property>
-        <property name="selectionRectVisible">
-         <bool>true</bool>
-        </property>
-       </widget>
        <widget class="QListWidget" name="lw_tasks">
         <property name="selectionMode">
          <enum>QAbstractItemView::SingleSelection</enum>
@@ -39,6 +31,48 @@
         <property name="selectionRectVisible">
          <bool>false</bool>
         </property>
+       </widget>
+       <widget class="QScrollArea" name="scrollArea">
+        <property name="widgetResizable">
+         <bool>true</bool>
+        </property>
+        <widget class="QWidget" name="scrollAreaWidgetContents">
+         <property name="geometry">
+          <rect>
+           <x>0</x>
+           <y>0</y>
+           <width>230</width>
+           <height>271</height>
+          </rect>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_2">
+          <property name="spacing">
+           <number>3</number>
+          </property>
+          <property name="leftMargin">
+           <number>3</number>
+          </property>
+          <property name="topMargin">
+           <number>3</number>
+          </property>
+          <property name="rightMargin">
+           <number>3</number>
+          </property>
+          <property name="bottomMargin">
+           <number>3</number>
+          </property>
+          <item>
+           <widget class="DragList" name="lw_files"/>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="verticalLayout_3">
+            <property name="spacing">
+             <number>3</number>
+            </property>
+           </layout>
+          </item>
+         </layout>
+        </widget>
        </widget>
       </widget>
       <widget class="QSplitter" name="splitter_2">
@@ -86,7 +120,7 @@ background-color: rgb(0, 0, 0);</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>509</width>
+     <width>750</width>
      <height>22</height>
     </rect>
    </property>

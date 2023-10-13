@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'main.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.3.1
+## Created by: Qt User Interface Compiler version 6.5.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -18,8 +18,9 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QTransform)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QGridLayout, QListView,
     QListWidget, QListWidgetItem, QMainWindow, QMenu,
-    QMenuBar, QPlainTextEdit, QPushButton, QSizePolicy,
-    QSplitter, QStatusBar, QVBoxLayout, QWidget)
+    QMenuBar, QPlainTextEdit, QPushButton, QScrollArea,
+    QSizePolicy, QSplitter, QStatusBar, QVBoxLayout,
+    QWidget)
 
 from widget import DragList
 
@@ -27,7 +28,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(509, 380)
+        MainWindow.resize(750, 644)
         self.actionExit = QAction(MainWindow)
         self.actionExit.setObjectName(u"actionExit")
         self.actionExit_2 = QAction(MainWindow)
@@ -61,16 +62,34 @@ class Ui_MainWindow(object):
         self.splitter = QSplitter(self.splitter_3)
         self.splitter.setObjectName(u"splitter")
         self.splitter.setOrientation(Qt.Horizontal)
-        self.lw_files = DragList(self.splitter)
-        self.lw_files.setObjectName(u"lw_files")
-        self.lw_files.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.lw_files.setSelectionRectVisible(True)
-        self.splitter.addWidget(self.lw_files)
         self.lw_tasks = QListWidget(self.splitter)
         self.lw_tasks.setObjectName(u"lw_tasks")
         self.lw_tasks.setSelectionMode(QAbstractItemView.SingleSelection)
         self.lw_tasks.setSelectionRectVisible(False)
         self.splitter.addWidget(self.lw_tasks)
+        self.scrollArea = QScrollArea(self.splitter)
+        self.scrollArea.setObjectName(u"scrollArea")
+        self.scrollArea.setWidgetResizable(True)
+        self.scrollAreaWidgetContents = QWidget()
+        self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 230, 271))
+        self.verticalLayout_2 = QVBoxLayout(self.scrollAreaWidgetContents)
+        self.verticalLayout_2.setSpacing(3)
+        self.verticalLayout_2.setObjectName(u"verticalLayout_2")
+        self.verticalLayout_2.setContentsMargins(3, 3, 3, 3)
+        self.lw_files = DragList(self.scrollAreaWidgetContents)
+        self.lw_files.setObjectName(u"lw_files")
+
+        self.verticalLayout_2.addWidget(self.lw_files)
+
+        self.verticalLayout_3 = QVBoxLayout()
+        self.verticalLayout_3.setSpacing(3)
+        self.verticalLayout_3.setObjectName(u"verticalLayout_3")
+
+        self.verticalLayout_2.addLayout(self.verticalLayout_3)
+
+        self.scrollArea.setWidget(self.scrollAreaWidgetContents)
+        self.splitter.addWidget(self.scrollArea)
         self.splitter_3.addWidget(self.splitter)
         self.splitter_2 = QSplitter(self.splitter_3)
         self.splitter_2.setObjectName(u"splitter_2")
@@ -106,7 +125,7 @@ class Ui_MainWindow(object):
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 509, 22))
+        self.menubar.setGeometry(QRect(0, 0, 750, 22))
         self.menuFile = QMenu(self.menubar)
         self.menuFile.setObjectName(u"menuFile")
         self.menuFile.setTearOffEnabled(False)

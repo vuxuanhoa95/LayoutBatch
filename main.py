@@ -1,4 +1,5 @@
 from functools import partial
+import importlib
 import os
 import re
 import sys
@@ -6,7 +7,7 @@ import logging
 
 from PySide6.QtCore import QObject, QEvent
 from PySide6.QtGui import QCursor, QAction, QActionGroup, QCloseEvent
-from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMenu, QListWidgetItem, QMessageBox
+from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMenu, QListWidgetItem, QMessageBox, QLayout, QWidget
 
 from utils import jobmodel
 from main_ui import Ui_MainWindow
@@ -44,12 +45,31 @@ def is_valid_path(string: str):
     return False
 
 
+def deleteItemsOfLayout(layout: QLayout):
+    if layout is not None:
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+            else:
+                deleteItemsOfLayout(item.layout())
+
+def load_module(modname, fname):
+    spec = importlib.util.spec_from_file_location(modname, fname)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[modname] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 class TaskItem(QListWidgetItem):
 
     def __init__(self, name, path):
         super().__init__(name)
         self.name = name
         self.path = path.replace('\\', '/')
+        self.plugin = None
 
 
 class FileItem(QListWidgetItem):
@@ -123,7 +143,7 @@ class MainWindow(QMainWindow):
         exe_group.addAction(self.ui.actionRender)
 
         self.ui.splitter_2.setSizes([1,0])
-        self.ui.splitter.setSizes([300,100])
+        self.ui.splitter.setSizes([100,300])
 
         self.ui.pte_log.setReadOnly(True)
 
@@ -141,6 +161,7 @@ class MainWindow(QMainWindow):
         self.ui.lw_tasks.installEventFilter(self)
         self.ui.pte_log.customContextMenuRequested.connect(self.pte_log_context_menu)
         self.ui.lw_files.on_dropped.connect(self.handle_drop)
+        self.ui.lw_tasks.itemClicked.connect(self.on_task_clicked)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         result = len(self.job._jobs)==0
@@ -183,6 +204,12 @@ class MainWindow(QMainWindow):
             if os.path.exists(url):
                 self.add_file(url)
 
+    def on_task_clicked(self, item):
+        if isinstance(item, TaskItem):
+            print(item.name)
+            if item.plugin:
+                self.load_plugin_ui(item.path)
+
     def pte_log_context_menu(self, event):
         source = self.ui.pte_log
         menu = source.createStandardContextMenu()
@@ -192,8 +219,20 @@ class MainWindow(QMainWindow):
         menu.exec(source.mapToGlobal(event))
         del menu
 
-    def test(self):
-        pass
+    def load_plugin_ui(self, plugin_path):
+        plugin_dir = os.path.dirname(os.path.realpath(plugin_path))
+        if plugin_dir not in sys.path:
+            sys.path.append(plugin_dir)
+        layout = self.ui.verticalLayout_3
+        deleteItemsOfLayout(layout)
+        self.current_plugin_widget = QWidget()
+        layout.addWidget(self.current_plugin_widget)
+        self.current_plugin = load_module('lp_plugin', plugin_path)
+        # print(sys.path)
+        print(sys.modules)
+        if hasattr(self.current_plugin, 'load_ui'):
+            self.current_plugin.load_ui(self)
+            
 
     def quick_run(self, flag):
         if flag == 'help':
@@ -258,6 +297,7 @@ class MainWindow(QMainWindow):
             item = TaskItem(name, path)
             self.ui.lw_tasks.addItem(item)
             print('Added task', item.name)
+            return item
 
     def add_plugins(self):
         plugin_dir = resource_path('plugins')
@@ -265,12 +305,16 @@ class MainWindow(QMainWindow):
             plugin_path = resource_path(f'plugins/{plugin}')
             if not os.path.isdir(plugin_path):
                 continue
+
+            print(f'Added plugin {plugin}')
             for task in os.listdir(plugin_path):
                 task_path = resource_path(f'plugins/{plugin}/{task}')
                 if not os.path.isdir(task_path):
                     continue
-                if os.path.isfile(resource_path(f'plugins/{plugin}/{task}/lb_{plugin}_{task}.py')):
-                    print(f'Added plugin {task}')
+                task_file = resource_path(f'plugins/{plugin}/{task}/lb_{plugin}_{task}.py')
+                if os.path.isfile(task_file):
+                    task_item = self.add_task(task_file)
+                    task_item.plugin = True
                 
 
     def add_presets(self):
