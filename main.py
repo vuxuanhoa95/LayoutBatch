@@ -105,6 +105,7 @@ class MainWindow(QMainWindow):
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_4.mb")
 
         self.plugins = {}
+        self.current_plugin = None
 
 
     def build_ui(self):
@@ -210,6 +211,8 @@ class MainWindow(QMainWindow):
     def on_task_clicked(self, item):
         if isinstance(item, TaskItem):
             print(item.name)
+            self.load_plugin_ui()
+
             if item.plugin:
                 self.load_plugin_ui(item.path)
 
@@ -222,15 +225,14 @@ class MainWindow(QMainWindow):
         menu.exec(source.mapToGlobal(event))
         del menu
 
-    def load_plugin_ui(self, plugin_path):
-        # clean plugin layout widget
-        layout = self.ui.verticalLayout_3
-        item = layout.itemAt(0)
-        if item:
-            widget = item.widget()
-            widget.setParent(None)
+    def load_plugin_ui(self, plugin_path=None):
+        layout = self.ui.stackedWidget
+        if not plugin_path:
+            layout.setCurrentIndex(0)
+            self.current_plugin = None
+            return
 
-        # load plugin
+        # check if plugin imported, if not, import it!
         module_name, _ = os.path.splitext(os.path.basename(plugin_path))
         if not self.plugins.get(module_name):
             plugin_dir = os.path.dirname(os.path.realpath(plugin_path))
@@ -240,9 +242,14 @@ class MainWindow(QMainWindow):
             self.plugins[module_name] = module_loaded
         else:
             module_loaded = self.plugins[module_name]
-
+        
         if hasattr(module_loaded, 'load'):
-            module_loaded.load(self, layout)
+            self.current_plugin = module_loaded.load(self)
+
+        # load plugin ui to stacked widget
+        if hasattr(self.current_plugin, 'widget'):
+            index = layout.addWidget(self.current_plugin.widget)
+            layout.setCurrentIndex(index)
             
             
     def quick_run(self, flag):

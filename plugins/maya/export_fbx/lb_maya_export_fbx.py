@@ -5,40 +5,85 @@ from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 
-from main import MainWindow
-# from export_fbx_ui import Ui_Form
+from main import MainWindow, FileItem
+from widget import DragList
 
 
 plugin = None
 
 
-def load(core, layout):
+def load(core):
     global plugin
     if not plugin:
         plugin = LB_Maya_Export_FBX(core)
-    plugin.add_ui(layout)
+
+    return plugin
 
 
-if __name__ == "__main__":
-    print("Hello World")
+def run():
+    if plugin:
+        plugin.run()
 
 
-class LB_Maya_Export_FBX(object):
+class LB_Maya_Export_FBX(QObject):
 
 
     def __init__(self, core):
+        super().__init__()
         print('Initializing...', self.__class__)
         self.core: MainWindow = core
-        self.widget: QWidget = None
+
+        # init ui
+        Form = QWidget()
+        verticalLayout = QVBoxLayout(Form)
+
+        # label
+        verticalLayout.addWidget(QLabel("Export FBX", Form))
+
+        # list files
+        self.listFiles = DragList(Form)
+        self.listFiles.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        verticalLayout.addWidget(self.listFiles)
+        self.listFiles.on_dropped.connect(self.handle_drop)
+        self.listFiles.installEventFilter(self)
+
+        # output dir
+        self.lineEdit = QLineEdit(Form)
+        verticalLayout.addWidget(self.lineEdit)
+
+        self.widget = Form
 
 
-    def add_ui(self, layout: QLayout):
+    def eventFilter(self, source: QObject, event: QEvent) -> bool:
+        event_type = event.type()
+        if event_type == QEvent.ContextMenu:
+            menu = QMenu()
+            if source == self.listFiles:
+                a = QAction('Add files', self)
+                a.triggered.connect(lambda: self.load_file())
+                menu.addAction(a)
+                menu.addSeparator()
+                item = source.itemAt(event.pos())
+                if item:
+                    a = QAction('Remove files', self)
+                    a.triggered.connect(lambda: self.remove_file())
+                    menu.addAction(a)
+            menu.exec(QCursor.pos())
+            del menu
 
-        if not self.widget:
-            Form = QWidget()
-            verticalLayout = QVBoxLayout(Form)
-            lineEdit = QLineEdit(Form)
-            verticalLayout.addWidget(lineEdit)
-            self.widget = Form
+        return super().eventFilter(source, event)
 
-        layout.addWidget(self.widget)
+    def handle_drop(self, links):
+        for url in links:
+            if os.path.exists(url):
+                self.add_file(url)
+
+    def add_file(self, path):
+        if os.path.exists(path):
+            item = FileItem(os.path.basename(path), path)
+            self.listFiles.addItem(item)
+            print('Added file', path)
+
+    def run(self):
+        pass
+        # self.core.job.queue_process(t.path, f)

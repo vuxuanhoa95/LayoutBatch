@@ -16,11 +16,11 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QIcon, QImage, QKeySequence, QLinearGradient,
     QPainter, QPalette, QPixmap, QRadialGradient,
     QTransform)
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QGridLayout, QListView,
-    QListWidget, QListWidgetItem, QMainWindow, QMenu,
-    QMenuBar, QPlainTextEdit, QPushButton, QScrollArea,
-    QSizePolicy, QSplitter, QStatusBar, QVBoxLayout,
-    QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QGridLayout, QLabel,
+    QListView, QListWidget, QListWidgetItem, QMainWindow,
+    QMenu, QMenuBar, QPlainTextEdit, QPushButton,
+    QSizePolicy, QSplitter, QStackedWidget, QStatusBar,
+    QVBoxLayout, QWidget)
 
 from widget import DragList
 
@@ -67,29 +67,25 @@ class Ui_MainWindow(object):
         self.lw_tasks.setSelectionMode(QAbstractItemView.SingleSelection)
         self.lw_tasks.setSelectionRectVisible(False)
         self.splitter.addWidget(self.lw_tasks)
-        self.scrollArea = QScrollArea(self.splitter)
-        self.scrollArea.setObjectName(u"scrollArea")
-        self.scrollArea.setWidgetResizable(True)
-        self.scrollAreaWidgetContents = QWidget()
-        self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 230, 271))
-        self.verticalLayout_2 = QVBoxLayout(self.scrollAreaWidgetContents)
-        self.verticalLayout_2.setSpacing(3)
+        self.stackedWidget = QStackedWidget(self.splitter)
+        self.stackedWidget.setObjectName(u"stackedWidget")
+        self.default = QWidget()
+        self.default.setObjectName(u"default")
+        self.verticalLayout_2 = QVBoxLayout(self.default)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
-        self.verticalLayout_2.setContentsMargins(3, 3, 3, 3)
-        self.lw_files = DragList(self.scrollAreaWidgetContents)
+        self.label = QLabel(self.default)
+        self.label.setObjectName(u"label")
+
+        self.verticalLayout_2.addWidget(self.label)
+
+        self.lw_files = DragList(self.default)
         self.lw_files.setObjectName(u"lw_files")
+        self.lw_files.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
         self.verticalLayout_2.addWidget(self.lw_files)
 
-        self.verticalLayout_3 = QVBoxLayout()
-        self.verticalLayout_3.setSpacing(3)
-        self.verticalLayout_3.setObjectName(u"verticalLayout_3")
-
-        self.verticalLayout_2.addLayout(self.verticalLayout_3)
-
-        self.scrollArea.setWidget(self.scrollAreaWidgetContents)
-        self.splitter.addWidget(self.scrollArea)
+        self.stackedWidget.addWidget(self.default)
+        self.splitter.addWidget(self.stackedWidget)
         self.splitter_3.addWidget(self.splitter)
         self.splitter_2 = QSplitter(self.splitter_3)
         self.splitter_2.setObjectName(u"splitter_2")
@@ -152,11 +148,14 @@ class Ui_MainWindow(object):
 
         self.retranslateUi(MainWindow)
 
+        self.stackedWidget.setCurrentIndex(0)
+
+
         QMetaObject.connectSlotsByName(MainWindow)
     # setupUi
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Batch Export FBX", None))
+        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Layout Previz Tasks", None))
         self.actionExit.setText(QCoreApplication.translate("MainWindow", u"Exit", None))
         self.actionExit_2.setText(QCoreApplication.translate("MainWindow", u"Exit", None))
         self.actionHelp.setText(QCoreApplication.translate("MainWindow", u"Help", None))
@@ -165,6 +164,7 @@ class Ui_MainWindow(object):
         self.actionMayapy.setText(QCoreApplication.translate("MainWindow", u"Mayapy", None))
         self.actionRender.setText(QCoreApplication.translate("MainWindow", u"Render", None))
         self.actionAddFiles.setText(QCoreApplication.translate("MainWindow", u"Add files", None))
+        self.label.setText(QCoreApplication.translate("MainWindow", u"Default", None))
         self.pte_log.setPlainText("")
         self.b_execute.setText(QCoreApplication.translate("MainWindow", u"Run Tasks", None))
         self.b_clear.setText(QCoreApplication.translate("MainWindow", u"Clear All", None))
