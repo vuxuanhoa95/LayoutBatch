@@ -6,22 +6,39 @@ from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 
 from main import MainWindow
-from export_fbx_ui import Ui_Form
+# from export_fbx_ui import Ui_Form
 
 
-def load_ui(core):
-    plugin = LB_Maya_Export_FBX(core)
-    plugin.add_ui()
+plugin = None
+
+
+def load(core, layout):
+    global plugin
+    if not plugin:
+        plugin = LB_Maya_Export_FBX(core)
+    plugin.add_ui(layout)
+
+
+if __name__ == "__main__":
+    print("Hello World")
 
 
 class LB_Maya_Export_FBX(object):
 
 
     def __init__(self, core):
+        print('Initializing...', self.__class__)
         self.core: MainWindow = core
-        # self.add_ui()
-        
+        self.widget: QWidget = None
 
-    def add_ui(self):
-        self.widget = Ui_Form()
-        self.widget.setupUi(self.core.current_plugin_widget)
+
+    def add_ui(self, layout: QLayout):
+
+        if not self.widget:
+            Form = QWidget()
+            verticalLayout = QVBoxLayout(Form)
+            lineEdit = QLineEdit(Form)
+            verticalLayout.addWidget(lineEdit)
+            self.widget = Form
+
+        layout.addWidget(self.widget)

@@ -56,6 +56,7 @@ def deleteItemsOfLayout(layout: QLayout):
                 deleteItemsOfLayout(item.layout())
 
 def load_module(modname, fname):
+    print("loading module", modname)
     spec = importlib.util.spec_from_file_location(modname, fname)
     module = importlib.util.module_from_spec(spec)
     sys.modules[modname] = module
@@ -102,6 +103,8 @@ class MainWindow(QMainWindow):
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_2.mb")
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_3.mb")
         # self.add_file(r"D:\temp\test\Base_Rig_Latest_4.mb")
+
+        self.plugins = {}
 
 
     def build_ui(self):
@@ -220,20 +223,28 @@ class MainWindow(QMainWindow):
         del menu
 
     def load_plugin_ui(self, plugin_path):
-        plugin_dir = os.path.dirname(os.path.realpath(plugin_path))
-        if plugin_dir not in sys.path:
-            sys.path.append(plugin_dir)
+        # clean plugin layout widget
         layout = self.ui.verticalLayout_3
-        deleteItemsOfLayout(layout)
-        self.current_plugin_widget = QWidget()
-        layout.addWidget(self.current_plugin_widget)
-        self.current_plugin = load_module('lp_plugin', plugin_path)
-        # print(sys.path)
-        print(sys.modules)
-        if hasattr(self.current_plugin, 'load_ui'):
-            self.current_plugin.load_ui(self)
-            
+        item = layout.itemAt(0)
+        if item:
+            widget = item.widget()
+            widget.setParent(None)
 
+        # load plugin
+        module_name, _ = os.path.splitext(os.path.basename(plugin_path))
+        if not self.plugins.get(module_name):
+            plugin_dir = os.path.dirname(os.path.realpath(plugin_path))
+            if plugin_dir not in sys.path:
+                sys.path.append(plugin_dir)
+            module_loaded = load_module(module_name, plugin_path)
+            self.plugins[module_name] = module_loaded
+        else:
+            module_loaded = self.plugins[module_name]
+
+        if hasattr(module_loaded, 'load'):
+            module_loaded.load(self, layout)
+            
+            
     def quick_run(self, flag):
         if flag == 'help':
             QMessageBox.information(self, "Help", 

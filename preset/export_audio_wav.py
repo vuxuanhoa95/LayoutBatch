@@ -9,7 +9,7 @@ import os
 os.environ["PATH"] += os.pathsep + __TOOLS__
 inputfile = __INPUTFILE__
 inname, ext = os.path.splitext(inputfile)
-outname = inname + '.audio.wav'
+outname = inname + '.convert.wav'
 outputfile = os.path.join(os.path.dirname(inputfile), outname)
 
 (
