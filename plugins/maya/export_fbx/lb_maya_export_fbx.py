@@ -7,6 +7,7 @@ from PySide6.QtWidgets import *
 
 from main import MainWindow, FileItem
 from widget import DragList
+from ui import BaseWidget
 
 
 plugin = None
@@ -15,7 +16,8 @@ plugin = None
 def load(core):
     global plugin
     if not plugin:
-        plugin = LB_Maya_Export_FBX(core)
+        # plugin = LB_Maya_Export_FBX(core)
+        plugin = MayaExportFBX(core)
 
     return plugin
 
@@ -23,6 +25,16 @@ def load(core):
 def run():
     if plugin:
         plugin.run()
+
+
+class MayaExportFBX(BaseWidget.BaseSidePanel):
+
+    def __init__(self, core):
+        self.core: MainWindow = core
+        super().__init__(self.core)
+        print('Initializing...', self.__class__)
+
+        self.label.setText("Export FBX")
 
 
 class LB_Maya_Export_FBX(QObject):

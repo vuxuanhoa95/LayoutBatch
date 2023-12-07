@@ -9,19 +9,52 @@ maya.standalone.initialize()
 
 import maya.cmds as cmds
 import maya.mel as mel
+import pymel.core as pm
 import os
 import sys
-
-# imports the module from the given path
-import importlib
-module_path = __MODULE__
-mk = importlib.machinery.SourceFileLoader("maya_kit", module_path).load_module()
+import json
 
 import re
 
-EXPORT_DIR = r"\\vietsap002\projects\HCE\09_Share\Hoa\testExport"
-SELECTION_SETS = ["ControlSet", "FacialControls"]
+EXPORT_DIR = r"\\vietsap002\projects\HCE\09_Share\Hoa\mocap\CortanaExtra"
+SELECTION_SETS = ["ControlSet"]
 NAMESPACES = []
+
+
+def select_by_json_set(targets, json_path):
+    # get control list from json
+    control_list = []
+    selection_set = json_path.split('\\')[-2]
+    with open(json_path, mode='r') as json_file:
+        json_object = json.load(json_file)
+        control_list = json_object['objects'].keys()
+
+    # get target namespace
+    target_namespaces = []
+    for s in targets:
+        # get name space from selection
+        try:
+            ns = s.rpartition(":")[0]
+        except:
+            pass
+        else:
+            if ns not in target_namespaces:
+                target_namespaces.append(ns)
+
+    # select by namespace
+    cmds.select(clear=True)
+    for ns in target_namespaces:
+        for c in control_list:
+            c = pm.NameParser(c).swapNamespace(ns)
+            try:
+                cmds.select(c, add=True)
+            except:
+                pass
+        
+        string_notify = '<hl>{}</hl> <hl>{}</hl> selected from <hl>{}</hl>'.format(ns, len(cmds.ls(sl=True)), selection_set)
+        cmds.inViewMessage(amg=string_notify, pos='topLeft', fade=True)
+
+    return cmds.ls(sl=True)
 
 
 def select_ctrl_set(ns):
@@ -95,7 +128,7 @@ def trim_anim_source(anim_source, frame_range):
                     pass
     return anim_source
 
-def export_anim_source(maya_file, cleanup=False):
+def export_anim_source(maya_file, cleanup=True):
     cmds.file(maya_file, o=True, f=True)
     maya_file_name, _ = os.path.splitext(os.path.basename(maya_file))
 
@@ -105,7 +138,8 @@ def export_anim_source(maya_file, cleanup=False):
     if result:
         export_dir = os.path.join(EXPORT_DIR, result.group('shot'))
     else:
-        export_dir = os.path.join(EXPORT_DIR, maya_file_name)
+        # export_dir = os.path.join(EXPORT_DIR, maya_file_name)
+        export_dir = os.path.join(EXPORT_DIR)
         
     # get control set based on namespace
     namespaces = NAMESPACES.copy()
@@ -120,10 +154,21 @@ def export_anim_source(maya_file, cleanup=False):
             a = create_anim_source(ctrl_set, anim_source_name="{}".format(ns), custom_namespace=ns)
             trim_anim_source(a, get_frame_range())
             if result:
-                export_path = os.path.join(export_dir, "{}_{}.mb".format(ns, result.group('shot')))
+                export_path = os.path.join(export_dir, "{}__{}.mb".format(ns, result.group('shot')))
             else:
-                export_path = os.path.join(export_dir, "{}.mb".format(ns))
-            anim_sources.append((a, export_path))
+                export_path = os.path.join(export_dir, "{}__{}.mb".format(ns, maya_file_name))
+            anim_sources.append((a, export_path.replace("\\", "/")))
+
+    ctrl_set = select_by_json_set(cmds.ls("*:Controls"), r"\\vietsap002\projects\HCE\data\review\libanim\Layout\MasterChief_Full.set\set.json")
+    if ctrl_set:
+        ns = ctrl_set[0].rpartition(":")[0]
+        a = create_anim_source(ctrl_set, anim_source_name="{}".format(ns), custom_namespace=ns)
+        trim_anim_source(a, get_frame_range())
+        if result:
+            export_path = os.path.join(export_dir, "{}__{}.mb".format(ns, result.group('shot')))
+        else:
+            export_path = os.path.join(export_dir, "{}__{}.mb".format(ns, maya_file_name))
+        anim_sources.append((a, export_path.replace("\\", "/")))
     
     # export anim sources
     if anim_sources:
@@ -132,8 +177,34 @@ def export_anim_source(maya_file, cleanup=False):
             os.makedirs(export_dir)
             
     for a, e in anim_sources:
-        cmds.timeEditorAnimSource(a, e=True, export=e.replace("\\", "/"))
+        cmds.timeEditorAnimSource(a, e=True, export=e)
         print("exported", e)
+
+    if cleanup:
+        for a, e in anim_sources:
+            cleanup_file(e)
+            print("cleaned:", e)
+
+def cleanup_file(file_path):
+    cmds.file(file_path, o=True, f=True, executeScriptNodes=False)
+
+    # clean up namespace
+    for i in cmds.namespaceInfo(lon=True):
+        if i in ['UI', 'shared']:
+            continue
+        child_namespace = cmds.namespaceInfo(i, lon=True, r=True)
+        namespaces_to_delete = [i]
+        if child_namespace:
+            namespaces_to_delete = child_namespace[::-1] + namespaces_to_delete
+
+        for ns in namespaces_to_delete:
+            try:
+                cmds.namespace(rm=ns, mergeNamespaceWithParent=True)
+            except:
+                pass
+    print('cleaned: namespace')
+
+    cmds.file(save=True)
         
 if __name__ == "__main__":
     file = sys.argv[1]
@@ -142,7 +213,7 @@ if __name__ == "__main__":
         files = []
         with open(file, "r") as f:
             for line in f.readlines():
-                line = line.strip()
+                line = line.strip().strip('"')
                 if line.endswith(".ma") or line.endswith(".mb"):
                     files.append(line)
 

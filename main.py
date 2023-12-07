@@ -171,11 +171,11 @@ class MainWindow(QMainWindow):
         result = len(self.job._jobs)==0
         event.ignore()
         if result:
-            result = QMessageBox.question(self, "Confirm Exit...", "Are you sure you want to exit ?")
+            result = QMessageBox.question(self, "Confirm Exit...", "Are you sure you want to exit?")
             if result == QMessageBox.Yes:
                 event.accept()
         else:
-            result = QMessageBox.warning(self, "Cannot Exit...", "Some tasks are running, please wait")
+            result = QMessageBox.warning(self, "Cannot Exit...", "Some tasks are running, please wait...")
 
         # return super().closeEvent(event)
 
@@ -211,10 +211,10 @@ class MainWindow(QMainWindow):
     def on_task_clicked(self, item):
         if isinstance(item, TaskItem):
             print(item.name)
-            self.load_plugin_ui()
+            self.load_plugin()
 
             if item.plugin:
-                self.load_plugin_ui(item.path)
+                self.load_plugin(item.path)
 
     def pte_log_context_menu(self, event):
         source = self.ui.pte_log
@@ -225,8 +225,10 @@ class MainWindow(QMainWindow):
         menu.exec(source.mapToGlobal(event))
         del menu
 
-    def load_plugin_ui(self, plugin_path=None):
-        layout = self.ui.stackedWidget
+    def load_plugin(self, plugin_path=None, layout=None):
+        if not layout:
+            layout = self.ui.stackedWidget
+
         if not plugin_path:
             layout.setCurrentIndex(0)
             self.current_plugin = None
@@ -247,8 +249,14 @@ class MainWindow(QMainWindow):
             self.current_plugin = module_loaded.load(self)
 
         # load plugin ui to stacked widget
-        if hasattr(self.current_plugin, 'widget'):
-            index = layout.addWidget(self.current_plugin.widget)
+        widget = None
+        if isinstance(self.current_plugin, QWidget):
+            widget = self.current_plugin
+        elif hasattr(self.current_plugin, 'widget'):
+            widget = self.current_plugin.widget
+
+        if isinstance(widget, QWidget):
+            index = layout.addWidget(widget)
             layout.setCurrentIndex(index)
             
             

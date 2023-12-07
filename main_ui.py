@@ -17,10 +17,10 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QPainter, QPalette, QPixmap, QRadialGradient,
     QTransform)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QGridLayout, QLabel,
-    QListView, QListWidget, QListWidgetItem, QMainWindow,
-    QMenu, QMenuBar, QPlainTextEdit, QPushButton,
-    QSizePolicy, QSplitter, QStackedWidget, QStatusBar,
-    QVBoxLayout, QWidget)
+    QLineEdit, QListView, QListWidget, QListWidgetItem,
+    QMainWindow, QMenu, QMenuBar, QPlainTextEdit,
+    QPushButton, QSizePolicy, QSplitter, QStackedWidget,
+    QStatusBar, QVBoxLayout, QWidget)
 
 from widget import DragList
 
@@ -72,7 +72,9 @@ class Ui_MainWindow(object):
         self.default = QWidget()
         self.default.setObjectName(u"default")
         self.verticalLayout_2 = QVBoxLayout(self.default)
+        self.verticalLayout_2.setSpacing(3)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
+        self.verticalLayout_2.setContentsMargins(3, 3, 3, 3)
         self.label = QLabel(self.default)
         self.label.setObjectName(u"label")
 
@@ -83,6 +85,11 @@ class Ui_MainWindow(object):
         self.lw_files.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
         self.verticalLayout_2.addWidget(self.lw_files)
+
+        self.lineEdit = QLineEdit(self.default)
+        self.lineEdit.setObjectName(u"lineEdit")
+
+        self.verticalLayout_2.addWidget(self.lineEdit)
 
         self.stackedWidget.addWidget(self.default)
         self.splitter.addWidget(self.stackedWidget)
