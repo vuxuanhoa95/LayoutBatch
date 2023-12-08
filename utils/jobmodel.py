@@ -226,10 +226,86 @@ class Worker3(QProcess):
             self.logfileIO.write(stdout)
         self.handle_progress(stdout)
 
-        # self.progress += 1
-        # if self.progress >= 100:
-        #     self.progress = 1
-        # self.on_progress.emit(self.progress, self.progress_count)
+    def handle_progress(self, data):
+        if not self.real_progress:
+            pattern_0 = r'(?:PROGRESSCOUNT:)(\d+)'
+            match_0 = re.search(pattern_0, data)
+            if match_0:
+                self.real_progress = True
+                self.progress_count = int(match_0.group(1))
+                self.progress = 0
+                print('set progresscount', self.progress_count)
+                self.on_progress.emit(self.progress, self.progress_count)
+                return
+            
+            else:
+                self.progress += 1
+                if self.progress >= 100:
+                    self.progress = 1
+                self.on_progress.emit(self.progress, self.progress_count)
+                return
+        
+        else:
+            pattern_1 = r'(?:PROGRESS:)(\d+)'
+            match_1 = re.search(pattern_1, data)
+            if match_1:
+                self.progress = int(match_1.group(1))
+                # self.progress += 1
+                print('set progress', self.progress)
+                self.on_progress.emit(self.progress, self.progress_count)
+
+
+class WorkerDoit(QProcess):
+    
+    on_log = Signal(str)
+    on_progress = Signal(int, int)
+    on_finished = Signal(float)
+
+    def __init__(self, parent: QObject) -> None:
+        super().__init__(parent)
+
+        self.readyReadStandardOutput.connect(self.handle_stdout)
+        self.readyReadStandardError.connect(self.handle_stderr)
+        self.started.connect(self.handle_started)
+        self.finished.connect(self.handle_finished)
+        self.stateChanged.connect(self.handle_state)
+        self.timer = None
+        self.logfile = None
+        self.logfileIO = None
+        self.real_progress = False
+        self.progress = 0
+        self.progress_count = 100
+
+    def handle_state(self):
+        pass
+
+    def handle_started(self):
+        self.timer = time.time()
+        if self.logfile:
+            try:
+                self.logfileIO = open(self.logfile, 'w')
+            except:
+                pass
+
+    def handle_finished(self):
+        self.on_finished.emit(time.time() - self.timer)
+        if isinstance(self.logfileIO, TextIOWrapper):
+            self.logfileIO.close()
+
+    def handle_stderr(self):
+        data = self.readAllStandardError()
+        stderr = bytes(data).decode("utf8")
+        self.on_log.emit(stderr)
+        if isinstance(self.logfileIO, TextIOWrapper):
+            self.logfileIO.write(stderr)
+
+    def handle_stdout(self):
+        data = self.readAllStandardOutput()
+        stdout = bytes(data).decode("utf8")
+        self.on_log.emit(stdout)
+        if isinstance(self.logfileIO, TextIOWrapper):
+            self.logfileIO.write(stdout)
+        self.handle_progress(stdout)
 
     def handle_progress(self, data):
         if not self.real_progress:

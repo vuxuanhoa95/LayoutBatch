@@ -16,7 +16,6 @@ class BaseSidePanel(QWidget):
         super().__init__(parent)
 
         verticalLayout = QVBoxLayout(self)
-        verticalLayout.setContentsMargins(3, 3, 3, 3)
 
         # label
         self.label = QLabel("Base Side Panel", self)
@@ -31,6 +30,11 @@ class BaseSidePanel(QWidget):
         # output dir
         self.outputFile = BaseInput.InputFilePath(self)
         verticalLayout.addWidget(self.outputFile)
+
+        # execute
+        self.buttonExec = QPushButton("Execute", self)
+        self.buttonExec.clicked.connect(self.execute)
+        verticalLayout.addWidget(self.buttonExec)
 
 
     def eventFilter(self, source: QObject, event: QEvent) -> bool:
@@ -51,3 +55,7 @@ class BaseSidePanel(QWidget):
             del menu
 
         return super().eventFilter(source, event)
+    
+
+    def execute(self):
+        print("Execute ne")

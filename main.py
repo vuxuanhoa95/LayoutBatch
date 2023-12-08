@@ -11,6 +11,8 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMenu, QLi
 
 from utils import jobmodel
 from main_ui import Ui_MainWindow
+import qdarktheme
+
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -111,8 +113,7 @@ class MainWindow(QMainWindow):
     def build_ui(self):
 
         self.ui.lv_progress.setModel(self.job)
-        delegate = jobmodel.ProgressBarDelegate()
-        self.ui.lv_progress.setItemDelegate(delegate)
+        self.ui.lv_progress.setItemDelegate(jobmodel.ProgressBarDelegate())
 
         self.ui.menuMaya.addSeparator()
 
@@ -354,6 +355,7 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    qdarktheme.setup_theme()
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

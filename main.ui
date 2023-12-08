@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>750</width>
+    <width>924</width>
     <height>644</height>
    </rect>
   </property>
@@ -79,17 +79,30 @@
         <enum>Qt::Horizontal</enum>
        </property>
        <widget class="QListView" name="lv_progress"/>
-       <widget class="QPlainTextEdit" name="pte_log">
-        <property name="contextMenuPolicy">
-         <enum>Qt::CustomContextMenu</enum>
+       <widget class="QTabWidget" name="tabWidget">
+        <property name="currentIndex">
+         <number>0</number>
         </property>
-        <property name="styleSheet">
-         <string notr="true">color: rgb(255, 255, 255);
-background-color: rgb(0, 0, 0);</string>
-        </property>
-        <property name="plainText">
-         <string/>
-        </property>
+        <widget class="QWidget" name="tab">
+         <attribute name="title">
+          <string>Tab 1</string>
+         </attribute>
+         <layout class="QVBoxLayout" name="verticalLayout_3">
+          <item>
+           <widget class="QPlainTextEdit" name="pte_log"/>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="tab_2">
+         <attribute name="title">
+          <string>Tab 2</string>
+         </attribute>
+         <layout class="QVBoxLayout" name="verticalLayout_4">
+          <item>
+           <widget class="QStackedWidget" name="stackedWidget_2"/>
+          </item>
+         </layout>
+        </widget>
        </widget>
       </widget>
      </widget>
@@ -119,7 +132,7 @@ background-color: rgb(0, 0, 0);</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>750</width>
+     <width>924</width>
      <height>22</height>
     </rect>
    </property>

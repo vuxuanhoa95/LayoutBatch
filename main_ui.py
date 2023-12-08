@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'main.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.5.2
+## Created by: Qt User Interface Compiler version 6.3.1
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QGridLayout, QLa
     QLineEdit, QListView, QListWidget, QListWidgetItem,
     QMainWindow, QMenu, QMenuBar, QPlainTextEdit,
     QPushButton, QSizePolicy, QSplitter, QStackedWidget,
-    QStatusBar, QVBoxLayout, QWidget)
+    QStatusBar, QTabWidget, QVBoxLayout, QWidget)
 
 from widget import DragList
 
@@ -28,7 +28,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(750, 644)
+        MainWindow.resize(924, 644)
         self.actionExit = QAction(MainWindow)
         self.actionExit.setObjectName(u"actionExit")
         self.actionExit_2 = QAction(MainWindow)
@@ -100,12 +100,29 @@ class Ui_MainWindow(object):
         self.lv_progress = QListView(self.splitter_2)
         self.lv_progress.setObjectName(u"lv_progress")
         self.splitter_2.addWidget(self.lv_progress)
-        self.pte_log = QPlainTextEdit(self.splitter_2)
+        self.tabWidget = QTabWidget(self.splitter_2)
+        self.tabWidget.setObjectName(u"tabWidget")
+        self.tab = QWidget()
+        self.tab.setObjectName(u"tab")
+        self.verticalLayout_3 = QVBoxLayout(self.tab)
+        self.verticalLayout_3.setObjectName(u"verticalLayout_3")
+        self.pte_log = QPlainTextEdit(self.tab)
         self.pte_log.setObjectName(u"pte_log")
-        self.pte_log.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.pte_log.setStyleSheet(u"color: rgb(255, 255, 255);\n"
-"background-color: rgb(0, 0, 0);")
-        self.splitter_2.addWidget(self.pte_log)
+
+        self.verticalLayout_3.addWidget(self.pte_log)
+
+        self.tabWidget.addTab(self.tab, "")
+        self.tab_2 = QWidget()
+        self.tab_2.setObjectName(u"tab_2")
+        self.verticalLayout_4 = QVBoxLayout(self.tab_2)
+        self.verticalLayout_4.setObjectName(u"verticalLayout_4")
+        self.stackedWidget_2 = QStackedWidget(self.tab_2)
+        self.stackedWidget_2.setObjectName(u"stackedWidget_2")
+
+        self.verticalLayout_4.addWidget(self.stackedWidget_2)
+
+        self.tabWidget.addTab(self.tab_2, "")
+        self.splitter_2.addWidget(self.tabWidget)
         self.splitter_3.addWidget(self.splitter_2)
 
         self.verticalLayout.addWidget(self.splitter_3)
@@ -128,7 +145,7 @@ class Ui_MainWindow(object):
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 750, 22))
+        self.menubar.setGeometry(QRect(0, 0, 924, 22))
         self.menuFile = QMenu(self.menubar)
         self.menuFile.setObjectName(u"menuFile")
         self.menuFile.setTearOffEnabled(False)
@@ -156,6 +173,7 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
 
         self.stackedWidget.setCurrentIndex(0)
+        self.tabWidget.setCurrentIndex(0)
 
 
         QMetaObject.connectSlotsByName(MainWindow)
@@ -172,7 +190,8 @@ class Ui_MainWindow(object):
         self.actionRender.setText(QCoreApplication.translate("MainWindow", u"Render", None))
         self.actionAddFiles.setText(QCoreApplication.translate("MainWindow", u"Add files", None))
         self.label.setText(QCoreApplication.translate("MainWindow", u"Default", None))
-        self.pte_log.setPlainText("")
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), QCoreApplication.translate("MainWindow", u"Tab 1", None))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), QCoreApplication.translate("MainWindow", u"Tab 2", None))
         self.b_execute.setText(QCoreApplication.translate("MainWindow", u"Run Tasks", None))
         self.b_clear.setText(QCoreApplication.translate("MainWindow", u"Clear All", None))
         self.menuFile.setTitle(QCoreApplication.translate("MainWindow", u"File", None))
