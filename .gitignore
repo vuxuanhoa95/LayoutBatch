@@ -163,7 +163,7 @@ cython_debug/
 .temp/
 *.ma
 *.mb
-*.mp4
+# *.mp4
 *.wav
 *.exe
 .doit.*
