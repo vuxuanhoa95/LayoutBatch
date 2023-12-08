@@ -16,7 +16,7 @@ import json
 
 import re
 
-EXPORT_DIR = r"\\vietsap002\projects\HCE\09_Share\Hoa\mocap\CortanaExtra"
+EXPORT_DIR = r"\\vietsap002\projects\HCE\09_Share\Hoa\testmocap"
 SELECTION_SETS = ["ControlSet"]
 NAMESPACES = []
 
@@ -128,7 +128,7 @@ def trim_anim_source(anim_source, frame_range):
                     pass
     return anim_source
 
-def export_anim_source(maya_file, cleanup=True):
+def export_anim_source(maya_file, export_dir, cleanup=True):
     cmds.file(maya_file, o=True, f=True)
     maya_file_name, _ = os.path.splitext(os.path.basename(maya_file))
 
@@ -136,10 +136,10 @@ def export_anim_source(maya_file, cleanup=True):
     # scene_name = os.path.basename(cmds.file(q=True, sn=True))
     result = re.search(r'shot_(?P<shot>.+?)_', maya_file_name)
     if result:
-        export_dir = os.path.join(EXPORT_DIR, result.group('shot'))
-    else:
-        # export_dir = os.path.join(EXPORT_DIR, maya_file_name)
-        export_dir = os.path.join(EXPORT_DIR)
+        export_dir = os.path.join(export_dir, result.group('shot'))
+    # else:
+    #     # export_dir = os.path.join(EXPORT_DIR, maya_file_name)
+    #     export_dir = os.path.join(export_dir)
         
     # get control set based on namespace
     namespaces = NAMESPACES.copy()
@@ -219,9 +219,9 @@ if __name__ == "__main__":
 
         print('PROGRESSCOUNT:{}\n'.format(len(files)), flush=True)
         for i, f in enumerate(files):
-            export_anim_source(f)
+            export_anim_source(f, os.path.join(EXPORT_DIR, file_name))
             print('PROGRESS:{}:Exporting:{}\n'.format(i, f), flush=True)
 
     elif file_ext in [".ma", ".mb"]:
-        export_anim_source(file)
+        export_anim_source(file, os.path.join(EXPORT_DIR, file_name))
 
