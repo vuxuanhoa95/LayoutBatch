@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Optional
 
 from PySide6.QtCore import *
 from PySide6.QtGui import *
@@ -61,13 +62,28 @@ class BaseSidePanel(QWidget):
         print("Execute ne")
 
 
+class BaseMdiSubWindow(QMdiSubWindow):
+
+
+    def __init__(self, parent: QWidget, **kwargs) -> None:
+        super().__init__(parent, **kwargs)
+
+        self.setAttribute(Qt.WA_DeleteOnClose)
+
+        sub_win_main_widget = QWidget(self)
+        v_layout = QVBoxLayout(sub_win_main_widget)
+        v_layout.addWidget(QTextEdit("Sub window"))
+
+        self.setWidget(sub_win_main_widget)
+
+
 class BaseMdiUI:
     """The ui class of mdi window."""
 
     def _make_mdi_area_test_widget(self, enable_tab_mode=False):
         # Widgets
-        container = QWidget()
-        mdi_area = QMdiArea()
+        self.container = QWidget()
+        self.mdi_area = QMdiArea()
         label_test_name = QLabel()
         cascade_button = QPushButton("Cascade")
         new_button = QPushButton("Add new")
@@ -75,27 +91,16 @@ class BaseMdiUI:
 
         # Setup widgets
         if enable_tab_mode:
-            mdi_area.setViewMode(QMdiArea.ViewMode.TabbedView)
-            mdi_area.setTabsClosable(True)
-            mdi_area.setTabsMovable(True)
+            self.mdi_area.setViewMode(QMdiArea.ViewMode.TabbedView)
+            self.mdi_area.setTabsClosable(True)
+            self.mdi_area.setTabsMovable(True)
             label_test_name.setText("QMdiArea(QMdiArea.viewMode = TabbedView)")
         else:
             label_test_name.setText("QMdiArea(QMdiArea.viewMode = SubWindowView)")
 
-        def add_new_sub_window():
-            sub_win = QMdiSubWindow(container)
-            sub_win_main_widget = QWidget(sub_win)
-            v_layout = QVBoxLayout(sub_win_main_widget)
-            v_layout.addWidget(QTextEdit("Sub window"))
-
-            sub_win.setWidget(sub_win_main_widget)
-            mdi_area.addSubWindow(sub_win)
-            sub_win.show()
-
-        add_new_sub_window()
-        new_button.pressed.connect(add_new_sub_window)
-        cascade_button.pressed.connect(mdi_area.cascadeSubWindows)
-        tiled_button.pressed.connect(mdi_area.tileSubWindows)
+        new_button.pressed.connect(lambda: self.add_window(BaseMdiSubWindow(self.container)))
+        cascade_button.pressed.connect(self.mdi_area.cascadeSubWindows)
+        tiled_button.pressed.connect(self.mdi_area.tileSubWindows)
         new_button.setDefault(True)
 
         # Layout
@@ -104,11 +109,15 @@ class BaseMdiUI:
         h_layout.addWidget(cascade_button)
         h_layout.addWidget(tiled_button)
 
-        v_main_layout = QVBoxLayout(container)
+        v_main_layout = QVBoxLayout(self.container)
         v_main_layout.addWidget(label_test_name)
         v_main_layout.addLayout(h_layout)
-        v_main_layout.addWidget(mdi_area)
-        return container
+        v_main_layout.addWidget(self.mdi_area)
+        return self.container
+    
+    def add_window(self, window: QMdiSubWindow):
+        self.mdi_area.addSubWindow(window)
+        window.show()
 
     def setup_ui(self, win: QWidget) -> None:
         """Set up ui."""

@@ -2,7 +2,7 @@
 import qdarktheme
 from qdarktheme._util import get_qdarktheme_root_path
 from qdarktheme.qtpy.QtCore import QDir, Qt, Slot
-from qdarktheme.qtpy.QtGui import QAction, QActionGroup, QFont, QIcon
+from qdarktheme.qtpy.QtGui import QAction, QActionGroup, QFont, QIcon, QCloseEvent
 from qdarktheme.qtpy.QtWidgets import (
     QColorDialog,
     QFileDialog,
@@ -25,7 +25,7 @@ from qdarktheme.widget_gallery._ui.mdi_ui import MdiUI
 from qdarktheme.widget_gallery._ui.widgets_ui import WidgetsUI
 
 from main_window_ui import Ui_MainWindow
-from ui.BaseWidget import BaseMdiUI
+from task.task_manager import TaskManager
 
 
 class _MainWindowUI(Ui_MainWindow):
@@ -79,14 +79,6 @@ class _MainWindowUI(Ui_MainWindow):
         activitybar.addWidget(spacer)
 
 
-        # main widget
-        for ui in (BaseMdiUI,):
-            container = QWidget()
-            ui().setup_ui(container)
-            self.stackedWidget.addWidget(container)
-
-
-
 class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
@@ -102,8 +94,15 @@ class MainWindow(QMainWindow):
         for action in self._ui.actions_theme:
             action.triggered.connect(self._change_theme)
 
-        
-        
+        # main widget
+        self.taskManager = TaskManager(self)
+        self._ui.stackedWidget.addWidget(self.taskManager)
+
+    
+    def closeEvent(self, event: QCloseEvent) -> None:
+        event.ignore()
+        if self.taskManager.close():
+            event.accept()
         # menu options
         
 
@@ -114,7 +113,7 @@ class MainWindow(QMainWindow):
 
 
 class _WidgetGalleryUI:
-    def setup_ui(self, main_win: QMainWindow) -> None:
+    def setupUi(self, main_win: QMainWindow) -> None:
         # Actions
         self.action_open_folder = QAction(QIcon("icons:folder_open_24dp.svg"), "Open folder dialog")
         self.action_open_color_dialog = QAction(QIcon("icons:palette_24dp.svg"), "Open color dialog")
@@ -233,7 +232,7 @@ class WidgetGallery(QMainWindow):
         super().__init__()
         QDir.addSearchPath("icons", f"{get_qdarktheme_root_path().as_posix()}/widget_gallery/svg")
         self._ui = _WidgetGalleryUI()
-        self._ui.setup_ui(self)
+        self._ui.setupUi(self)
         self._theme = "dark"
         self._corner_shape = "rounded"
 
