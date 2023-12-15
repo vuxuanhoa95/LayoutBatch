@@ -41,9 +41,9 @@ class _TaskUI:
         v_layout.addWidget(self.progressBar)
 
         # terminal
-        self.plainText = QPlainTextEdit(mdi_window)
-        self.plainText.setReadOnly(True)
-        v_layout.addWidget(self.plainText)
+        self.outLog = QTextEdit(mdi_window)
+        self.outLog.setReadOnly(True)
+        v_layout.addWidget(self.outLog)
 
 
 class TitleProxyStyle(QProxyStyle):
@@ -65,6 +65,7 @@ class Task(QMdiSubWindow):
 
     STATE = ["NotRunning", "Starting", "Running"]
     ERROR = ["FailedToStart", "Crashed", "Timedout", "WriteError", "ReadError", "UnknownError"]
+    LEVEL = ["info", "notify", "alert"]
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
@@ -80,18 +81,21 @@ class Task(QMdiSubWindow):
         self.setWindowTitle(self.taskId)
 
         self.process = Worker(self)
-        self.process.on_stdout.connect(self._on_log)
-        self.process.on_stderr.connect(self._on_log)
+        self.process.on_stdout.connect(lambda x: self._on_log(x, level="info"))
+        self.process.on_stderr.connect(lambda x: self._on_log(x, level="alert"))
         self.process.on_state_changed.connect(self._on_state)
         self.process.on_error_occurred.connect(self._on_error)
         self.process.on_finished.connect(self._on_finished)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         event.ignore()
-        result = QMessageBox.question(self, "Confirm Exit...", "Are you sure you want to kill process?")
-        if result == QMessageBox.Yes:
-            self.process.kill()
-            self.process.waitForFinished()
+        if self.process.state().value != 0:
+            result = QMessageBox.question(self, "Confirm Exit...", "Are you sure you want to kill process?")
+            if result == QMessageBox.Yes:
+                self.process.kill()
+                self.process.waitForFinished()
+                event.accept()
+        else:
             event.accept()
 
     def run(self):
@@ -107,9 +111,13 @@ class Task(QMdiSubWindow):
     def kill(self):
         self.process.kill()
 
-    def _on_log(self, log: str):
-        self._ui.plainText.verticalScrollBar().setValue(self._ui.plainText.verticalScrollBar().maximum())
-        self._ui.plainText.appendPlainText(log)
+    def _on_log(self, log: str, level="info"):
+        self._ui.outLog.verticalScrollBar().setValue(self._ui.outLog.verticalScrollBar().maximum())
+        if level == self.LEVEL[2]:
+            line = f'<font color=\"DeepPink\">{log}</font><br>'
+            self._ui.outLog.insertHtml(line)
+        else:
+            self._ui.outLog.insertPlainText(log)
 
         progress = self._ui.progressBar.value() + 1
         if progress >= 100:
@@ -134,24 +142,14 @@ class Task(QMdiSubWindow):
 class _TaskManagerUI:
     """The ui class of mdi window."""
 
-    def _make_mdi_area_test_widget(self, enable_tab_mode=False):
-
-        # Setup widgets
-        if enable_tab_mode:
-            self.mdi_area.setViewMode(QMdiArea.ViewMode.TabbedView)
-            self.mdi_area.setTabsClosable(True)
-            self.mdi_area.setTabsMovable(True)
-        else:
-            self.mdi_area.setViewMode(QMdiArea.ViewMode.SubWindowView)
-            self.mdi_area.setTabsClosable(False)
-            self.mdi_area.setTabsMovable(False)
-
-
     def setupUi(self, widget: QWidget) -> None:
         """Set up ui."""
         main_layout = QVBoxLayout(widget)
         splitter = QSplitter()
         main_layout.addWidget(splitter)
+
+        self.stackedWidget = QStackedWidget(widget)
+        splitter.addWidget(self.stackedWidget)
 
         self.container = QWidget()
         splitter.addWidget(self.container)

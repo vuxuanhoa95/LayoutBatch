@@ -27,7 +27,7 @@ if digits_at_end:
     outname = 'output.mp4'
     outputfile = os.path.join(directory, outname)
 
-    framerate = 24
+    framerate = 30
     (
         ffmpeg
         .input(f'{directory}/{pattern}', framerate=framerate)
