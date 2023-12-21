@@ -10,7 +10,7 @@ import sys
 
 print('PROGRESSCOUNT:10', flush=True)
 
-for i in range(60):
+for i in range(30):
     data = r'PROGRESS:{}:Exporting:Omg'.format(i)
     print(data, flush=True)
     with open("test.txt", "w") as f:
