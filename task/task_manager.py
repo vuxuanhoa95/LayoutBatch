@@ -1,143 +1,27 @@
-from typing import Optional
-import uuid
+import importlib
+import os
+import sys
+
 from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 
-
-from task.task_worker import Worker
-from utils import maya_launcher
-
-from qdarktheme._style_loader import load_palette, load_stylesheet
+from task.task_worker import TaskViewer
 
 
-def create_icon_by_color(color):
-    pixmap = QPixmap(256, 256)
-    pixmap.fill(color)
-    return QIcon(pixmap)
+def load_module(modname, fname):
+    print("loading module", modname)
+    spec = importlib.util.spec_from_file_location(modname, fname)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[modname] = module
+    spec.loader.exec_module(module)
+    return module
 
+def relative_path(path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, path)
 
-class _TaskUI:
-
-
-    def setupUi(self, mdi_window: QMdiSubWindow):
-
-        # main widget
-        self.mainWidget = QWidget(mdi_window)
-        mdi_window.setWidget(self.mainWidget)
-
-        # layout
-        v_layout = QVBoxLayout(self.mainWidget)
-
-        # # execute
-        # self.button_exec = QPushButton("Execute")
-        # v_layout.addWidget(self.button_exec)
-
-        self.labelError = QLabel(mdi_window)
-        v_layout.addWidget(self.labelError)
-
-        self.progressBar = QProgressBar(mdi_window)
-        self.progressBar.setTextVisible(True)
-        v_layout.addWidget(self.progressBar)
-
-        # terminal
-        self.outLog = QTextEdit(mdi_window)
-        self.outLog.setReadOnly(True)
-        v_layout.addWidget(self.outLog)
-
-
-class TitleProxyStyle(QProxyStyle):
-    def drawComplexControl(self, control, option, painter, widget=None):
-        if control == QStyle.CC_TitleBar:
-            if hasattr(widget, "titleColor"):
-                color = widget.titleColor
-                if color.isValid():
-                    option.palette.setBrush(
-                        QPalette.Highlight, QColor(color)
-                    )
-            option.icon = create_icon_by_color(QColor("transparent"))
-        super(TitleProxyStyle, self).drawComplexControl(
-            control, option, painter, widget
-        )
-
-
-class Task(QMdiSubWindow):
-
-    STATE = ["NotRunning", "Starting", "Running"]
-    ERROR = ["FailedToStart", "Crashed", "Timedout", "WriteError", "ReadError", "UnknownError"]
-    LEVEL = ["info", "notify", "alert"]
-
-    def __init__(self, parent: QWidget) -> None:
-        super().__init__(parent)
-        self.setAttribute(Qt.WA_DeleteOnClose)
-        # self.setWindowIcon(QIcon("icons:branding_watermark_24dp.svg"))
-        self.setWindowIcon(create_icon_by_color(QColor("transparent")))
-
-        self._ui = _TaskUI()
-        self._ui.setupUi(self)
-
-        self.taskId = uuid.uuid4().hex
-
-        self.setWindowTitle(self.taskId)
-
-        self.process = Worker(self)
-        self.process.on_stdout.connect(lambda x: self._on_log(x, level="info"))
-        self.process.on_stderr.connect(lambda x: self._on_log(x, level="alert"))
-        self.process.on_state_changed.connect(self._on_state)
-        self.process.on_error_occurred.connect(self._on_error)
-        self.process.on_finished.connect(self._on_finished)
-
-    def closeEvent(self, event: QCloseEvent) -> None:
-        event.ignore()
-        if self.process.state().value != 0:
-            result = QMessageBox.question(self, "Confirm Exit...", "Are you sure you want to kill process?")
-            if result == QMessageBox.Yes:
-                self.process.kill()
-                self.process.waitForFinished()
-                event.accept()
-        else:
-            event.accept()
-
-    def run(self):
-        mayapy = maya_launcher.mayapy(2024)
-        python = "python"
-        script = r'D:\Github\LayoutBatch\preset\test_maya_standalone.py'
-        print(mayapy, script)
-        # self.worker.setProgram(str(mayapy))
-        # self.worker.setArguments(f'"{script}"')
-        self.process.startCommand(f'"{mayapy}" "{script}"')
-        pass
-
-    def kill(self):
-        self.process.kill()
-
-    def _on_log(self, log: str, level="info"):
-        self._ui.outLog.verticalScrollBar().setValue(self._ui.outLog.verticalScrollBar().maximum())
-        if level == self.LEVEL[2]:
-            line = f'<font color=\"DeepPink\">{log}</font><br>'
-            self._ui.outLog.insertHtml(line)
-        else:
-            self._ui.outLog.insertPlainText(log)
-
-        progress = self._ui.progressBar.value() + 1
-        if progress >= 100:
-            self._ui.progressBar.setValue(1)
-        else:
-            self._ui.progressBar.setValue(progress)
-
-    def _on_state(self, state: int):
-        print(self.taskId, self.process.error())
-        self.setWindowTitle(f"{self.taskId} - {self.STATE[state]}")
-
-    def _on_error(self, error: int):
-        print(self.taskId, self.process.error())
-        self._ui.labelError.setText(self.ERROR[error])
-
-    def _on_finished(self, end_time):
-        self._ui.labelError.setText(f"Execution time: {end_time:.03f} sec")
-        self.setWindowTitle(f"{self.taskId} - Finished")
-        self._ui.progressBar.setValue(100)
-        
 
 class _TaskManagerUI:
     """The ui class of mdi window."""
@@ -148,13 +32,21 @@ class _TaskManagerUI:
         splitter = QSplitter()
         main_layout.addWidget(splitter)
 
-        self.stackedWidget = QStackedWidget(widget)
-        splitter.addWidget(self.stackedWidget)
+        # plugin ui area
+        self.containerPlugin = QWidget()
+        splitter.addWidget(self.containerPlugin)
+        v_layout = QVBoxLayout(self.containerPlugin)
 
-        self.container = QWidget()
-        splitter.addWidget(self.container)
+        self.comboPlugin = QComboBox(self.containerPlugin)
+        v_layout.addWidget(self.comboPlugin)
 
-        v_main_layout = QVBoxLayout(self.container)
+        self.stackPlugin = QStackedWidget(self.containerPlugin)
+        v_layout.addWidget(self.stackPlugin)
+
+        # manager ui area
+        self.containerManager = QWidget()
+        splitter.addWidget(self.containerManager)
+        v_main_layout = QVBoxLayout(self.containerManager)
 
         self.mdi_area = QMdiArea()
         v_main_layout.addWidget(self.mdi_area)
@@ -165,54 +57,126 @@ class _TaskManagerUI:
         self.buttonNew = QPushButton("Add new")
         self.buttonCascade = QPushButton("Cascade")
         self.buttonTiled = QPushButton("Tiled")
+        self.buttonCloseFinished = QPushButton("Close Finished")
         h_layout.addWidget(self.buttonNew)
         h_layout.addWidget(self.buttonCascade)
         h_layout.addWidget(self.buttonTiled)
+        h_layout.addWidget(self.buttonCloseFinished)
+
+        self.labelQueueStatus = QLabel()
+        v_main_layout.addWidget(self.labelQueueStatus)
 
 
 class TaskManager(QWidget):
 
+    MAX_INSTANCE = 2
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self._ui = _TaskManagerUI()
         self._ui.setupUi(self)
 
-        self._ui.buttonNew.pressed.connect(lambda: self.add_window())
+        self._ui.buttonNew.pressed.connect(lambda: self.add_to_queue())
         self._ui.buttonCascade.pressed.connect(self._ui.mdi_area.cascadeSubWindows)
         self._ui.buttonTiled.pressed.connect(self._ui.mdi_area.tileSubWindows)
+        self._ui.buttonCloseFinished.pressed.connect(self.close_finished_tasks)
         self._ui.buttonNew.setDefault(True)
+
+        self._ui.comboPlugin.currentTextChanged.connect(self.load_plugin)
+
+        self._running: list[str] = []
+        self._finished: list[str] = []
+
+        self._plugins: dict[str, str] = {}
+
+        self.scan_for_module(relative_path("agents"))
 
     
     def closeEvent(self, event: QCloseEvent) -> None:
         event.ignore()
-        running_tasks = []
+        running_tasks: list[TaskViewer] = []
         for t in self.tasks:
-            if t.process.state().value != 0:
+            if t.worker.state().value != 0:
                 running_tasks.append(t)
 
         if running_tasks:
             message = "Some processes are running:\n"
             for t in running_tasks:
-                message += f"{t.taskId}: {t.process.state()}\n"
+                message += f"{t.worker.id}: {t.worker.state()}\n"
 
             result = QMessageBox.question(self, "Confirm Exit...", f"{message}.\nAre you sure to close?")
             if result == QMessageBox.Yes:
                 for t in self.tasks:
-                    t.process.kill()
-                    t.process.waitForFinished()
+                    t.worker.kill()
+                    t.worker.waitForFinished()
                 event.accept()
         else:
             event.accept()
 
     @property
-    def tasks(self) -> list[Task]:
-        return [w for w in self._ui.mdi_area.subWindowList() if isinstance(w, Task)]
+    def tasks(self) -> list[TaskViewer]:
+        return [w for w in self._ui.mdi_area.subWindowList() if isinstance(w, TaskViewer)]
+    
+
+    def close_finished_tasks(self):
+        for t in self.tasks:
+            if t.worker.id in self._finished:
+                t.close()
 
 
-    def add_window(self):
-        window = Task(self._ui.container)
+    def add_to_queue(self):
+        task = TaskViewer(self._ui.containerManager)
+        task.finished.connect(lambda: self.on_task_finished(task.worker.id))
 
-        self._ui.mdi_area.addSubWindow(window)
-        window.show()
-        window.run()
+        self._ui.mdi_area.addSubWindow(task)
+        task.show()
+        self.start_queue()
+        # window.run()
+
+    def start_queue(self):
+
+        counter = 0
+        for task in self.tasks:
+            counter += 1
+            task_id = task.worker.id
+
+            if task_id in self._running or task_id in self._finished:
+                counter -= 1
+                continue
+
+            if len(self._running) >= self.MAX_INSTANCE:
+                continue
+
+            if task.worker.state() == QProcess.NotRunning:
+                task.run()
+                self._running.append(task_id)
+                counter -= 1
+
+        print("Running", self._running)
+        print("Finished", self._finished)
+        self._ui.labelQueueStatus.setText(f'Pending {counter}; Running {len(self._running)}; Finished {len(self._finished)}')
+
+    def on_task_finished(self, task_id):
+        if task_id in self._running:
+            self._running.remove(task_id)
+        
+        if task_id not in self._finished:
+            self._finished.append(task_id)
+
+        self.start_queue()
+
+    def scan_for_module(self, directory):
+        self._ui.comboPlugin.clear()
+
+        for plugin in os.listdir(directory):
+            plugin_path = os.path.join(directory, plugin, f"task_{plugin}.py")
+            if not os.path.isfile(plugin_path):
+                continue
+            
+            self._plugins[plugin] = plugin_path
+            self._ui.comboPlugin.addItem(plugin)
+            print(f'Added plugin {plugin}')
+
+    def load_plugin(self, plugin):
+        print("Load", self._plugins.get(plugin))
+
