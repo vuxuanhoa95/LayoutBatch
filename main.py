@@ -11,7 +11,6 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QFileDialog, QMenu, QLi
 
 from utils import jobmodel
 from main_ui import Ui_MainWindow
-import qdarktheme
 
 
 def resource_path(relative_path):
@@ -355,7 +354,6 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    qdarktheme.setup_theme()
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
